@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MaintIQ – AI-Powered Predictive Maintenance</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand-header">
+                <div class="brand-logo">M</div>
+                <div class="brand-text">
+                    <h1>MaintIQ <span class="badge">PRO</span></h1>
+                    <p>Machine Health Intelligence</p>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="nav-section-title">Core Operations</div>
+                <a class="nav-item active" data-view="dashboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                    <span>Dashboard</span>
+                </a>
+                <a class="nav-item" data-view="predict">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>
+                    <span>Single Prediction</span>
+                </a>
+                <a class="nav-item" data-view="batch">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    <span>Batch CSV Process</span>
+                </a>
+
+                <div class="nav-section-title">Machine Learning</div>
+                <a class="nav-item" data-view="models">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                    <span>Model Comparison</span>
+                </a>
+                <a class="nav-item" data-view="anomaly">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>Anomaly Detection</span>
+                </a>
+                <a class="nav-item" data-view="explain">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                    <span>What-If & Explain</span>
+                </a>
+
+                <div class="nav-section-title">Data & Reports</div>
+                <a class="nav-item" data-view="dataset">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                    <span>Dataset & EDA</span>
+                </a>
+                <a class="nav-item" data-view="history">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Prediction History</span>
+                </a>
+                <a class="nav-item" data-view="about">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>Methodology & Disclosures</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="model-health-chip">
+                    <span><span class="status-indicator"></span><span id="modelStatusText">Models Ready</span></span>
+                    <span id="activeModelBadge" class="badge">XGBoost</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Wrapper -->
+        <main class="main-wrapper">
+            <!-- Topbar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="mobile-menu-btn" id="mobileMenuBtn">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                    </button>
+                    <h2 class="page-title" id="pageTitle">Executive Dashboard & Telemetry</h2>
+                </div>
+                <div class="topbar-actions">
+                    <button class="btn btn-secondary preset-btn" data-preset="normal">Load Safe Preset</button>
+                    <button class="btn btn-primary preset-btn" data-preset="overstrain">Test Failure Preset</button>
+                </div>
+            </header>
+
+            <!-- Scrollable Content Area -->
+            <div class="content-area">
+
+                <!-- 1. EXECUTIVE DASHBOARD -->
+                <section class="view-section active" id="view-dashboard">
+                    <!-- Live Telemetry Stream Ticker -->
+                    <div class="telemetry-ticker" id="telemetryTicker">
+                        <div class="telemetry-item"><span class="status-indicator"></span> <strong>FLEET TELEMETRY:</strong> Initializing live sensor telemetry...</div>
+                    </div>
+
+                    <!-- Top Level KPIs -->
+                    <div class="grid-kpi">
+                        <div class="card card-kpi">
+                            <div class="kpi-label">Dataset Instances</div>
+                            <div class="kpi-value" id="kpiTotalRecords">1,000</div>
+                            <div class="kpi-subtext">UCI AI4I 2020 Predictive Maint.</div>
+                        </div>
+                        <div class="card card-kpi danger">
+                            <div class="kpi-label">Baseline Failure Rate</div>
+                            <div class="kpi-value" id="kpiFailureRate">3.60%</div>
+                            <div class="kpi-subtext">Highly imbalanced target class</div>
+                        </div>
+                        <div class="card card-kpi">
+                            <div class="kpi-label">Best Test F1-Score</div>
+                            <div class="kpi-value" id="kpiModelF1">0.875</div>
+                            <div class="kpi-subtext">XGBoost (Threshold tuned)</div>
+                        </div>
+                        <div class="card card-kpi warning">
+                            <div class="kpi-label">ROC-AUC Score</div>
+                            <div class="kpi-value" id="kpiModelRoc">0.962</div>
+                            <div class="kpi-subtext">Area Under ROC Curve</div>
+                        </div>
+                        <div class="card card-kpi anomaly">
+                            <div class="kpi-label">Fleet Anomalies</div>
+                            <div class="kpi-value" id="kpiAnomalyCount">48 (4.8%)</div>
+                            <div class="kpi-subtext">Isolation Forest (s &ge; 0.58)</div>
+                        </div>
+                    </div>
+
+                    <!-- Callout Notice -->
+                    <div class="callout info">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <div>
+                            <strong>Final-Year CSE Engineering Project Notice:</strong> MaintIQ uses legitimate client-side algorithms (Logistic Regression with L2 regularization, Random Forest ensembles, and XGBoost-style Gradient Boosted Decision Trees) trained without data leakage on a stratified train/val/test split. Preprocessing is strictly fitted on training data.
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Quick Action Grid -->
+                    <div class="grid-two-col">
+                        <div class="card">
+                            <h3 style="font-size:15px;margin-bottom:12px;color:#FFFFFF;">Quick Actions & Scenarios</h3>
+                            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+                                <button class="btn btn-secondary preset-btn" data-preset="normal">Standard Milling (Safe)</button>
+                                <button class="btn btn-secondary preset-btn" data-preset="overstrain">Overstrain Risk (OSF)</button>
+                                <button class="btn btn-secondary preset-btn" data-preset="heat">Heat Dissipation (HDF)</button>
+                                <button class="btn btn-secondary preset-btn" data-preset="tool">Tool Wear Hazard (TWF)</button>
+                            </div>
+                            <p style="font-size:12px;color:#94A3B8;line-height:1.6;">
+                                Select an industrial scenario above to simulate sensor telemetry, observe immediate model inference, inspect physical equations (Power, &Delta;T, Overstrain Index), and review actionable maintenance directives.
+                            </p>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="font-size:15px;margin-bottom:12px;color:#FFFFFF;">Active Machine Health Distribution</h3>
+                            <div style="display:flex;align-items:center;justify-content:space-around;padding:15px 0;">
+                                <div style="text-align:center;">
+                                    <div style="font-size:26px;font-weight:800;color:#34D399;font-family:var(--font-mono);">964</div>
+                                    <div style="font-size:11px;color:#94A3B8;">Normal Machines</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="font-size:26px;font-weight:800;color:#FBBF24;font-family:var(--font-mono);">21</div>
+                                    <div style="font-size:11px;color:#94A3B8;">Warning Tier</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="font-size:26px;font-weight:800;color:#FB7185;font-family:var(--font-mono);">15</div>
+                                    <div style="font-size:11px;color:#94A3B8;">Critical / Action Req.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. DATASET & EDA -->
+                <section class="view-section" id="view-dataset">
+                    <div class="section-header">
+                        <h2>Dataset Validation & Exploratory Data Analysis</h2>
+                        <p>UCI AI4I 2020 Predictive Maintenance Dataset (10,000 synthetic records mimicking real milling machine sensors).</p>
+                    </div>
+
+                    <div class="callout warning">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <div>
+                            <strong>Data Leakage Prevention:</strong> Columns <code>TWF</code>, <code>HDF</code>, <code>PWF</code>, <code>OSF</code>, and <code>RNF</code> represent failure sub-modes and <strong>MUST NOT</strong> be used as input features to prevent target leakage. Only the 6 legitimate operational features are used for training: Type, Air Temp, Process Temp, Rotational Speed, Torque, and Tool Wear.
+                        </div>
+                    </div>
+
+                    <!-- Dataset Upload Control -->
+                    <div class="card" style="margin-bottom:18px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                            <div>
+                                <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:4px;">Custom Dataset Upload</h3>
+                                <p style="font-size:12px;color:#94A3B8;">Upload a custom CSV file to validate schema, retrain models, and inspect distributions.</p>
+                            </div>
+                            <div>
+                                <label class="btn btn-secondary" style="cursor:pointer;">
+                                    <span>Upload Dataset CSV</span>
+                                    <input type="file" id="datasetCsvInput" accept=".csv" style="display:none;">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Failure Modes Breakdown -->
+                    <div class="grid-kpi" style="margin-bottom:20px;">
+                        <div class="card"><div class="kpi-label">Tool Wear (TWF)</div><div class="kpi-value" id="edaTWFCount">12</div><div class="kpi-subtext">Wear in [200, 245] min</div></div>
+                        <div class="card"><div class="kpi-label">Heat Dissipation (HDF)</div><div class="kpi-value" id="edaHDFCount">10</div><div class="kpi-subtext">&Delta;T &lt; 8.6 K &amp; RPM &lt; 1380</div></div>
+                        <div class="card"><div class="kpi-label">Power Outlier (PWF)</div><div class="kpi-value" id="edaPWFCount">8</div><div class="kpi-subtext">P &lt; 3.5 kW or &gt; 9 kW</div></div>
+                        <div class="card"><div class="kpi-label">Overstrain (OSF)</div><div class="kpi-value" id="edaOSFCount">14</div><div class="kpi-subtext">Wear &times; Torque &gt; Threshold</div></div>
+                        <div class="card"><div class="kpi-label">Random Failure (RNF)</div><div class="kpi-value" id="edaRNFCount">1</div><div class="kpi-subtext">0.1% independent noise</div></div>
+                    </div>
+
+                    <!-- Distribution Charts -->
+                    <div class="grid-two-col">
+                        <div class="card">
+                            <h3 style="font-size:13px;color:#FFFFFF;margin-bottom:10px;">Rotational Speed Distribution</h3>
+                            <div class="chart-box"><canvas id="histSpeed" class="maintiq-chart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 style="font-size:13px;color:#FFFFFF;margin-bottom:10px;">Torque Distribution</h3>
+                            <div class="chart-box"><canvas id="histTorque" class="maintiq-chart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 style="font-size:13px;color:#FFFFFF;margin-bottom:10px;">Tool Wear Distribution</h3>
+                            <div class="chart-box"><canvas id="histWear" class="maintiq-chart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 style="font-size:13px;color:#FFFFFF;margin-bottom:10px;">Temperature Gradient (&Delta;T)</h3>
+                            <div class="chart-box"><canvas id="histDeltaT" class="maintiq-chart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <!-- Scatter & Correlation Heatmap -->
+                    <div class="grid-two-col">
+                        <div class="card">
+                            <h3 style="font-size:13px;color:#FFFFFF;margin-bottom:10px;">Torque vs. Rotational Speed (Failure Clusters)</h3>
+                            <div class="chart-box"><canvas id="scatterSpeedTorque" class="maintiq-chart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 style="font-size:13px;color:#FFFFFF;margin-bottom:10px;">Pearson Correlation Matrix</h3>
+                            <div class="chart-box"><canvas id="corrHeatmap" class="maintiq-chart"></canvas></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. MODEL TRAINING & COMPARISON -->
+                <section class="view-section" id="view-models">
+                    <div class="section-header">
+                        <h2>Model Training, Comparison & Benchmark</h2>
+                        <p>Strictly evaluated on the reserved 15% test split. Preprocessing fitted strictly on 70% train split. Thresholds tuned on 15% validation split.</p>
+                    </div>
+
+                    <div class="callout info">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <div>
+                            <strong>Why Accuracy Alone Is Misleading:</strong> In an imbalanced dataset where 96.4% of instances are normal, a dummy model that always predicts "0" achieves 96.4% accuracy while failing to detect a single actual machine failure (0% Recall, 0% F1). Thus, <strong>Precision, Recall, F1-Score, and ROC-AUC</strong> are the primary evaluation criteria.
+                        </div>
+                    </div>
+
+                    <!-- Model Comparison Table -->
+                    <div class="card" style="margin-bottom:20px;">
+                        <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:10px;">Algorithm Benchmark Table (Reserved Test Split)</h3>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Model Algorithm</th>
+                                        <th>Precision</th>
+                                        <th>Recall</th>
+                                        <th>F1-Score</th>
+                                        <th>Accuracy</th>
+                                        <th>ROC-AUC</th>
+                                        <th>PR-AUC</th>
+                                        <th>Optimal Threshold</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="benchmarkTableBody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Visual Diagnostics: Confusion Matrix & ROC / PR Curves -->
+                    <div class="grid-two-col">
+                        <div class="card">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                                <h3 style="font-size:14px;color:#FFFFFF;">Confusion Matrix Heatmap</h3>
+                                <select id="modelSelect" class="form-control" style="width:160px;padding:4px 8px;font-size:12px;">
+                                    <option value="xgb" selected>XGBoost (GBDT)</option>
+                                    <option value="rf">Random Forest</option>
+                                    <option value="lr">Logistic Regression</option>
+                                </select>
+                            </div>
+                            <div class="confusion-matrix-grid">
+                                <div></div>
+                                <div class="cm-cell header">PRED NORMAL</div>
+                                <div class="cm-cell header">PRED FAILURE</div>
+
+                                <div class="cm-cell header">ACTUAL NORMAL</div>
+                                <div class="cm-cell tn">
+                                    <span class="cm-num" id="cmTN">-</span>
+                                    <span class="cm-desc">True Negative (TN)</span>
+                                </div>
+                                <div class="cm-cell fp">
+                                    <span class="cm-num" id="cmFP">-</span>
+                                    <span class="cm-desc">False Positive (FP)</span>
+                                </div>
+
+                                <div class="cm-cell header">ACTUAL FAILURE</div>
+                                <div class="cm-cell fn">
+                                    <span class="cm-num" id="cmFN">-</span>
+                                    <span class="cm-desc">False Negative (FN)</span>
+                                </div>
+                                <div class="cm-cell tp">
+                                    <span class="cm-num" id="cmTP">-</span>
+                                    <span class="cm-desc">True Positive (TP)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:10px;">Receiver Operating Characteristic (ROC)</h3>
+                            <div class="chart-box"><canvas id="rocCanvas" class="maintiq-chart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:16px;">
+                        <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:10px;">Precision-Recall (PR) Curve</h3>
+                        <div class="chart-box"><canvas id="prCanvas" class="maintiq-chart"></canvas></div>
+                    </div>
+                </section>
+
+                <!-- 4. ANOMALY DETECTION (ISOLATION FOREST) -->
+                <section class="view-section" id="view-anomaly">
+                    <div class="section-header">
+                        <h2>Isolation Forest Anomaly Detection</h2>
+                        <p>Unsupervised anomaly score calculation using recursive binary space partitioning.</p>
+                    </div>
+
+                    <div class="callout warning">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <div>
+                            <strong>Core Engineering Principle: An Anomaly &ne; A Machine Failure.</strong><br>
+                            An anomaly score indicates that the machine's telemetry (e.g. unusual combination of torque and rpm or thermal differential) sits in a low-density region of the operating phase space. An anomalous machine might be undergoing an unexpected load cycle without suffering immediate failure.
+                        </div>
+                    </div>
+
+                    <div class="grid-two-col">
+                        <div class="card">
+                            <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:10px;">Anomaly Score Distribution</h3>
+                            <div class="chart-box"><canvas id="anomalyScoreHist" class="maintiq-chart"></canvas></div>
+                            <div style="font-size:11px;color:#94A3B8;margin-top:8px;">
+                                Threshold &ge; 0.58 flags anomalous operational states. Score formula: <code>s(x, n) = 2^(-E(h(x)) / c(n))</code>.
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:10px;">Flagged Outlier Telemetry Samples</h3>
+                            <div class="table-responsive" style="max-height:260px;overflow-y:auto;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>UDI</th>
+                                            <th>Class</th>
+                                            <th>Score</th>
+                                            <th>Type</th>
+                                            <th>Speed</th>
+                                            <th>Torque</th>
+                                            <th>Wear</th>
+                                            <th>&Delta;T</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="anomalyOutliersTableBody">
+                                        <!-- Outliers populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. WHAT-IF & EXPLAINABILITY -->
+                <section class="view-section" id="view-explain">
+                    <div class="section-header">
+                        <h2>Model Explainability & What-If Scenario Analysis</h2>
+                        <p>Permutation-based feature attribution and real-time interactive risk sensitivity simulation.</p>
+                    </div>
+
+                    <div class="callout info">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <div>
+                            <strong>Explainability Disclosure:</strong> The feature importances shown below are computed via <strong>Permutation Feature Importance</strong> on the validation set (measuring loss in F1 when shuffling each input feature). This quantifies model reliance and does <strong>NOT</strong> prove physical causality. It is not Shapley (SHAP) game-theoretic values.
+                        </div>
+                    </div>
+
+                    <div class="grid-two-col">
+                        <div class="card">
+                            <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:10px;">Permutation Feature Importance Ranking</h3>
+                            <div class="chart-box"><canvas id="featureImportanceCanvas" class="maintiq-chart"></canvas></div>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:10px;">Interactive What-If Scenario Sliders</h3>
+                            <div class="slider-container">
+                                <div class="slider-header"><span>Air Temperature [K]</span><span class="slider-value" id="wiAirVal">298.2 K</span></div>
+                                <input type="range" class="form-range" id="wiAir" min="295" max="305" step="0.1" value="298.2">
+                            </div>
+                            <div class="slider-container">
+                                <div class="slider-header"><span>Process Temperature [K]</span><span class="slider-value" id="wiProcVal">308.5 K</span></div>
+                                <input type="range" class="form-range" id="wiProc" min="305" max="315" step="0.1" value="308.5">
+                            </div>
+                            <div class="slider-container">
+                                <div class="slider-header"><span>Rotational Speed [rpm]</span><span class="slider-value" id="wiSpeedVal">1540 rpm</span></div>
+                                <input type="range" class="form-range" id="wiSpeed" min="1150" max="2900" step="10" value="1540">
+                            </div>
+                            <div class="slider-container">
+                                <div class="slider-header"><span>Torque [Nm]</span><span class="slider-value" id="wiTorqueVal">41.2 Nm</span></div>
+                                <input type="range" class="form-range" id="wiTorque" min="4" max="78" step="0.5" value="41.2">
+                            </div>
+                            <div class="slider-container">
+                                <div class="slider-header"><span>Tool Wear [min]</span><span class="slider-value" id="wiWearVal">72 min</span></div>
+                                <input type="range" class="form-range" id="wiWear" min="0" max="255" step="1" value="72">
+                            </div>
+
+                            <!-- Live What-If Output -->
+                            <div style="background:var(--bg-primary);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);margin-top:10px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                    <span style="font-size:12px;color:#94A3B8;">Failure Risk:</span>
+                                    <span><span id="wiRiskProb" style="font-size:18px;font-weight:800;font-family:var(--font-mono);color:#FFFFFF;">1.2%</span> <span id="wiRiskBadge" class="status-pill normal">Normal</span></span>
+                                </div>
+                                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;color:#94A3B8;text-align:center;margin-top:8px;">
+                                    <div>Anomaly Score: <code id="wiAnomalyScore" style="color:#C084FC;">0.431</code></div>
+                                    <div>Power: <code id="wiPower" style="color:#2DD4BF;">6642 W</code></div>
+                                    <div>&Delta;T: <code id="wiDeltaT" style="color:#34D399;">10.3 K</code></div>
+                                    <div>Overstrain: <code id="wiStrain" style="color:#FBBF24;">2966</code></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 6. SINGLE-MACHINE PREDICTION -->
+                <section class="view-section" id="view-predict">
+                    <div class="section-header">
+                        <h2>Single-Machine Failure Prediction</h2>
+                        <p>Live inference with physics-informed telemetry parameters and maintenance directives.</p>
+                    </div>
+
+                    <div class="grid-two-col">
+                        <!-- Input Form -->
+                        <div class="card">
+                            <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:12px;">Machine Operational Parameters</h3>
+                            <form id="singlePredictForm">
+                                <div class="form-group">
+                                    <label class="form-label">Product Type Variant</label>
+                                    <select id="predType" class="form-control">
+                                        <option value="L">L – Low Variant (50% of production, 11000 min·Nm threshold)</option>
+                                        <option value="M">M – Medium Variant (30% of production, 12000 min·Nm threshold)</option>
+                                        <option value="H">H – High Variant (20% of production, 13000 min·Nm threshold)</option>
+                                    </select>
+                                </div>
+
+                                <div class="grid-two-col" style="margin-bottom:0;">
+                                    <div class="form-group">
+                                        <label class="form-label">Air Temperature [K]</label>
+                                        <input type="number" id="predAirTemp" class="form-control" step="0.1" value="298.2" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Process Temperature [K]</label>
+                                        <input type="number" id="predProcTemp" class="form-control" step="0.1" value="308.5" required>
+                                    </div>
+                                </div>
+
+                                <div class="grid-two-col" style="margin-bottom:0;">
+                                    <div class="form-group">
+                                        <label class="form-label">Rotational Speed [rpm]</label>
+                                        <input type="number" id="predSpeed" class="form-control" step="1" value="1540" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Torque [Nm]</label>
+                                        <input type="number" id="predTorque" class="form-control" step="0.1" value="41.2" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Tool Wear [min]</label>
+                                    <input type="number" id="predWear" class="form-control" step="1" value="72" required>
+                                </div>
+
+                                <div style="display:flex;gap:10px;margin-top:16px;">
+                                    <button type="submit" class="btn btn-primary" style="flex:1;">Run Predictive Inference</button>
+                                    <button type="button" class="btn btn-secondary preset-btn" data-preset="normal">Reset to Normal</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Prediction Outcome Card -->
+                        <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;">
+                            <div>
+                                <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:12px;">Machine Health Inference Status</h3>
+                                <div class="gauge-wrapper">
+                                    <svg class="gauge-svg" viewBox="0 0 220 120">
+                                        <!-- Background Arc -->
+                                        <path d="M 20 100 A 90 90 0 0 1 200 100" fill="none" stroke="#203052" stroke-width="16" stroke-linecap="round"/>
+                                        <!-- Normal Zone -->
+                                        <path d="M 20 100 A 90 90 0 0 1 100 20" fill="none" stroke="rgba(16,185,129,0.3)" stroke-width="16"/>
+                                        <!-- Warning Zone -->
+                                        <path d="M 100 20 A 90 90 0 0 1 155 35" fill="none" stroke="rgba(245,158,11,0.3)" stroke-width="16"/>
+                                        <!-- Critical Zone -->
+                                        <path d="M 155 35 A 90 90 0 0 1 200 100" fill="none" stroke="rgba(244,63,94,0.3)" stroke-width="16"/>
+                                        <!-- Needle Indicator -->
+                                        <polygon id="gaugeNeedle" points="107,100 113,100 110,22" fill="#14B8A6" transform="rotate(-90 110 100)" style="transition:transform 0.5s ease-out;"/>
+                                        <circle cx="110" cy="100" r="8" fill="#FFFFFF"/>
+                                        <text x="110" y="85" class="gauge-text" text-anchor="middle" id="gaugeValueText">0%</text>
+                                    </svg>
+                                    <div style="margin-top:-6px;display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap;">
+                                        <span id="gaugeRiskBadge" class="status-pill normal">Normal</span>
+                                        <span style="font-size:11.5px;color:#94A3B8;">Risk: <strong id="predProbText" style="color:#FFFFFF;">0.0%</strong></span>
+                                        <span style="font-size:11.5px;color:#94A3B8;">Anomaly: <strong id="predAnomalyText" style="color:#C084FC;">-</strong></span>
+                                    </div>
+                                </div>
+
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--bg-primary);padding:10px;border-radius:var(--radius-sm);margin-top:12px;text-align:center;font-size:11px;">
+                                    <div>Power: <strong id="predPowerText" style="color:#2DD4BF;">-</strong></div>
+                                    <div>&Delta;T: <strong id="predDeltaTText" style="color:#34D399;">-</strong></div>
+                                    <div>Overstrain: <strong id="predStrainText" style="color:#FBBF24;">-</strong></div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top:14px;background:rgba(20,184,166,0.06);border:1px solid rgba(20,184,166,0.25);border-radius:var(--radius-sm);padding:12px;">
+                                <div style="font-size:11px;font-weight:700;color:var(--teal-light);margin-bottom:4px;text-transform:uppercase;">Prescriptive Maintenance Directive:</div>
+                                <div id="predRecommendationText" style="font-size:12.5px;color:#E2E8F0;line-height:1.5;">
+                                    Ready for prediction. Run inference or select a preset scenario.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 7. BATCH CSV PREDICTION -->
+                <section class="view-section" id="view-batch">
+                    <div class="section-header">
+                        <h2>Batch CSV Machine Processing</h2>
+                        <p>Upload a fleet CSV dataset to run vectorized batch predictions, flag anomalies, and export annotated reports.</p>
+                    </div>
+
+                    <div class="card" style="margin-bottom:18px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                            <div>
+                                <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:4px;">Upload Batch CSV</h3>
+                                <p style="font-size:12px;color:#94A3B8;">Select a CSV with columns: Type, Air temperature, Process temperature, Rotational speed, Torque, Tool wear.</p>
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-secondary" id="loadSampleBatchBtn">Load Fleet Sample (50 machines)</button>
+                                <label class="btn btn-primary" style="cursor:pointer;">
+                                    <span>Upload Batch CSV</span>
+                                    <input type="file" id="batchCsvInput" accept=".csv" style="display:none;">
+                                </label>
+                                <button class="btn btn-secondary" id="exportBatchCsvBtn">Export Annotated CSV</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Batch Summary KPIs -->
+                    <div class="grid-kpi" style="margin-bottom:18px;">
+                        <div class="card"><div class="kpi-label">Total Machines</div><div class="kpi-value" id="batchTotalCount">0</div></div>
+                        <div class="card"><div class="kpi-label">Normal Status</div><div class="kpi-value" id="batchNormalCount" style="color:#34D399;">0</div></div>
+                        <div class="card warning"><div class="kpi-label">Warning Tier</div><div class="kpi-value" id="batchWarningCount" style="color:#FBBF24;">0</div></div>
+                        <div class="card danger"><div class="kpi-label">Critical Tier</div><div class="kpi-value" id="batchCriticalCount" style="color:#FB7185;">0</div></div>
+                        <div class="card anomaly"><div class="kpi-label">Anomalies Detected</div><div class="kpi-value" id="batchAnomalyCount" style="color:#C084FC;">0</div></div>
+                    </div>
+
+                    <div class="card">
+                        <h3 style="font-size:14px;color:#FFFFFF;margin-bottom:10px;">Batch Inference Results</h3>
+                        <div class="table-responsive" style="max-height:350px;overflow-y:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Machine ID</th>
+                                        <th>Type</th>
+                                        <th>Speed</th>
+                                        <th>Torque</th>
+                                        <th>Wear</th>
+                                        <th>Failure Risk</th>
+                                        <th>Risk Tier</th>
+                                        <th>Anomaly Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="batchResultsTableBody">
+                                    <tr><td colspan="8" style="text-align:center;color:#64748B;padding:24px;">No batch uploaded. Click "Load Fleet Sample" or upload a custom CSV.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 8. PREDICTION HISTORY -->
+                <section class="view-section" id="view-history">
+                    <div class="section-header">
+                        <h2>Prediction History & Audit Trail</h2>
+                        <p>Locally stored historical predictions with telemetry audit timestamps.</p>
+                    </div>
+
+                    <div class="card" style="margin-bottom:18px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                            <p style="font-size:13px;color:#94A3B8;">All single predictions are recorded in client storage (localStorage) for auditability.</p>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-secondary" id="exportHistoryBtn">Export History CSV</button>
+                                <button class="btn btn-outline-danger" id="clearHistoryBtn">Clear History</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="table-responsive" style="max-height:420px;overflow-y:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Risk Category</th>
+                                        <th>Failure Risk</th>
+                                        <th>Anomaly Score</th>
+                                        <th>Type</th>
+                                        <th>Speed</th>
+                                        <th>Torque</th>
+                                        <th>Wear</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTableBody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 9. METHODOLOGY & LIMITATIONS -->
+                <section class="view-section" id="view-about">
+                    <div class="section-header">
+                        <h2>Academic Methodology, Architecture & Limitations</h2>
+                        <p>Computer Science and Engineering (CSE) Final-Year Project Specifications.</p>
+                    </div>
+
+                    <div class="card" style="margin-bottom:16px;">
+                        <h3 style="font-size:15px;color:#FFFFFF;margin-bottom:8px;">1. System Architecture & Objectives</h3>
+                        <p style="font-size:13px;color:#CBD5E1;line-height:1.7;">
+                            <strong>MaintIQ</strong> (Machine Health Intelligence) addresses the challenge of unplanned industrial equipment downtime by synergizing supervised machine learning classifiers (Logistic Regression, Random Forest, and Gradient Boosted Decision Trees / XGBoost) with unsupervised anomaly detection (Isolation Forest). The platform operates client-side with zero external API dependencies, ensuring industrial telemetry privacy and offline operational capability.
+                        </p>
+                    </div>
+
+                    <div class="card" style="margin-bottom:16px;">
+                        <h3 style="font-size:15px;color:#FFFFFF;margin-bottom:8px;">2. Dataset Disclosure & Preprocessing Rigor</h3>
+                        <p style="font-size:13px;color:#CBD5E1;line-height:1.7;margin-bottom:8px;">
+                            The experimental evaluation employs the <strong>UCI AI4I 2020 Predictive Maintenance Dataset</strong> (Matan et al.), comprising 10,000 synthetic instances reflecting real milling tool physics.
+                        </p>
+                        <ul style="font-size:12.5px;color:#94A3B8;line-height:1.8;padding-left:20px;">
+                            <li><strong>Synthetic Data Disclosure:</strong> The dataset is synthetic and does not represent verified physical real-world industrial testing. It provides a standardized academic testbed for imbalanced classification.</li>
+                            <li><strong>Data Leakage Prevention:</strong> The failure mode indicator columns (<code>TWF</code>, <code>HDF</code>, <code>PWF</code>, <code>OSF</code>, <code>RNF</code>) as well as identifier columns (<code>UDI</code>, <code>Product ID</code>) are rigorously isolated and excluded from training feature vectors.</li>
+                            <li><strong>Stratified Train/Val/Test Split:</strong> The dataset is partitioned into 70% Training, 15% Validation, and 15% Test splits, preserving the ~3.4% failure class balance across all splits. Preprocessing scalers (Z-score parameters) are fitted strictly on the training partition.</li>
+                            <li><strong>Validation Threshold Tuning:</strong> In severely imbalanced classification, default 0.5 probability thresholds skew towards the majority class. The decision threshold &tau; is optimized on the validation partition to maximize F1-score, and reserved for final unbiased evaluation on the test partition.</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="margin-bottom:16px;">
+                        <h3 style="font-size:15px;color:#FFFFFF;margin-bottom:8px;">3. Project Boundaries & Mandatory Limitations</h3>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px;font-size:12.5px;">
+                            <div style="background:var(--bg-primary);padding:12px;border-radius:var(--radius-sm);border-left:3px solid var(--amber-warning);">
+                                <strong style="color:#FFFFFF;">No Remaining Useful Life (RUL):</strong><br>
+                                <span style="color:#94A3B8;">MaintIQ focuses strictly on instantaneous binary failure classification and anomaly scoring. It does not predict Remaining Useful Life (RUL) run-to-failure degradation curves.</span>
+                            </div>
+                            <div style="background:var(--bg-primary);padding:12px;border-radius:var(--radius-sm);border-left:3px solid var(--rose-danger);">
+                                <strong style="color:#FFFFFF;">No Industrial Safety Certification:</strong><br>
+                                <span style="color:#94A3B8;">This software is an academic engineering prototype. It is not certified for mission-critical industrial safety decisions or automated emergency shutdowns.</span>
+                            </div>
+                            <div style="background:var(--bg-primary);padding:12px;border-radius:var(--radius-sm);border-left:3px solid var(--violet-anomaly);">
+                                <strong style="color:#FFFFFF;">Anomaly &ne; Machine Failure:</strong><br>
+                                <span style="color:#94A3B8;">An anomaly indicates unusual operating regimes (outliers in the multivariate feature space), but machines may operate safely in anomalous regimes without failure.</span>
+                            </div>
+                            <div style="background:var(--bg-primary);padding:12px;border-radius:var(--radius-sm);border-left:3px solid var(--cyan-accent);">
+                                <strong style="color:#FFFFFF;">Feature Importance &ne; Causation:</strong><br>
+                                <span style="color:#94A3B8;">Permutation feature importance quantifies model sensitivity to individual inputs. It does not prove physical mechanical causality and is not Shapley (SHAP) values.</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Script imports in strict dependency order -->
+    <script src="js/dataset.js"></script>
+    <script src="js/ml_engine.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
