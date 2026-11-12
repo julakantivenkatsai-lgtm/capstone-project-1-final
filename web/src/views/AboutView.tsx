@@ -19,7 +19,7 @@ export const AboutView: React.FC = () => {
           Tagline: <strong style={{ color: '#14B8A6' }}>Machine Health Intelligence</strong>
         </p>
         <p style={{ fontSize: '13px', color: '#CBD5E1', lineHeight: 1.6 }}>
-          MaintIQ is an engineering demonstration that applies machine learning algorithms and unsupervised anomaly detection to uploaded machine telemetry. Training and inference run in the browser using client-side TypeScript and <strong>@kanaries/ml</strong>; the Express backend stores the active dataset in MongoDB.
+          MaintIQ is an engineering demonstration that applies machine learning algorithms and unsupervised anomaly detection to uploaded machine telemetry. Training and inference run in the browser using client-side TypeScript and <strong>@kanaries/ml</strong>. The GitHub Pages demo stores uploads in the current browser; the optional Express backend can store the active dataset in MongoDB.
         </p>
       </div>
 
@@ -134,7 +134,7 @@ export const AboutView: React.FC = () => {
           </div>
           <div style={{ background: '#0F172A', padding: '12px', borderRadius: '6px' }}>
             <div style={{ color: '#14B8A6', fontWeight: 700, marginBottom: '2px' }}>Deployment Target</div>
-            <div style={{ color: '#94A3B8' }}>Google AI Studio Publish</div>
+            <div style={{ color: '#94A3B8' }}>GitHub Pages static demo; optional Render backend</div>
           </div>
         </div>
       </div>

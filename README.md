@@ -2,7 +2,7 @@
 
 > **Tagline:** Machine Health Intelligence  
 > **Type:** Final-Year CSE Capstone Project  
-> **Deployment Target:** Google AI Studio Publish Compatible
+> **Deployment:** Free GitHub Pages static demo; optional Render backend
 
 ---
 

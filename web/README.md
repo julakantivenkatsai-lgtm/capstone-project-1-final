@@ -55,7 +55,7 @@ MaintIQ starts with no dataset. Upload a CSV with these required features:
 12. **Academic Methodology & Disclosures**: Transparent problem statement, dataset citations, and ethical limitations.
 
 ## CSV Uploads
-- **Batch CSV Inference** accepts multiple CSV files and ZIP archives containing CSV files. It accepts the six sensor columns without a target label, displays execution progress, and shows per-file results and predictions for valid rows.
+- **Batch CSV Inference** accepts multiple CSV files and ZIP archives containing CSV files. It accepts the six sensor columns without a target label, displays execution progress, and shows per-file trained predictions or physical-rule assessments depending on model availability.
 - **Dataset Upload** replaces the active dataset and refreshes the site after saving. MongoDB is used when configured; otherwise the dataset is stored in the current browser with a warning. Anomaly detection works with unlabeled sensor data; supervised prediction and comparison require at least 7 rows from each target class.
 - Invalid rows are reported with row numbers; duplicate rows are reported and retained. A file with a missing required column is rejected, but does not stop other selected files from running.
 - CSV/ZIP parsing runs locally in the browser; sensor-only rows are not treated as normal/failure training labels. Dataset uploads are limited to 12 MB for MongoDB storage.
