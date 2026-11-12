@@ -72,6 +72,11 @@ MaintIQ starts with no dataset. Upload a CSV with these required features:
 - The Blueprint configures a free Node web service. Set `MAINTIQ_USERNAME`, `MAINTIQ_PASSWORD`, and `MONGODB_URI` as secrets; Render generates `MAINTIQ_SESSION_SECRET`.
 - After deployment, Render provides a public `https://<service-name>.onrender.com` URL; it does not require your IP address. Free services spin down after 15 minutes without traffic and can take about a minute to wake up. They also have monthly usage limits, so this is suitable for a demo rather than production.
 
+## Free Public Demo with GitHub Pages
+- The `Deploy static demo` workflow builds the app with `VITE_STATIC_DEMO=true` and deploys it to `https://<owner>.github.io/<repository>/`.
+- If Pages is not enabled for the repository, open **Settings → Pages**, choose **GitHub Actions** as the build and deployment source, then rerun the workflow.
+- Static demo mode bypasses server login and keeps uploads and prediction history in each viewer's browser. It does not use the Express backend or sync data between viewers.
+
 ---
 
 ## 4. Mandatory Project Disclosures & Boundaries

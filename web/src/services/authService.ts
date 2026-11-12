@@ -1,5 +1,10 @@
+const isStaticDemo = import.meta.env.VITE_STATIC_DEMO === 'true';
+
 export const AuthService = {
+  isStaticDemo,
+
   async checkSession(): Promise<boolean> {
+    if (isStaticDemo) return true;
     try {
       const res = await fetch('/api/session', { credentials: 'include' });
       if (!res.ok) return false;
@@ -11,6 +16,7 @@ export const AuthService = {
   },
 
   async login(username: string, password: string): Promise<{ success: boolean; error?: string }> {
+    if (isStaticDemo) return { success: true };
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
@@ -27,6 +33,7 @@ export const AuthService = {
   },
 
   async logout(): Promise<boolean> {
+    if (isStaticDemo) return true;
     const res = await fetch('/api/logout', { method: 'POST', credentials: 'include' });
     return res.ok;
   },

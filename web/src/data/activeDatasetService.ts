@@ -1,6 +1,7 @@
 import { ActiveDataset, AI4IRecord } from '../types';
 
 const LOCAL_DATASET_KEY = 'maintiq_active_uploaded_dataset_v1';
+const isStaticDemo = import.meta.env.VITE_STATIC_DEMO === 'true';
 
 type DatasetPersistence = 'mongodb' | 'browser';
 
@@ -85,6 +86,10 @@ const useBrowserDataset = (reason: string): DatasetStorageResult => ({
 
 export const ActiveDatasetService = {
   async load(): Promise<DatasetStorageResult> {
+    if (isStaticDemo) {
+      return useBrowserDataset('Running in static demo mode.');
+    }
+
     let response: Response;
     try {
       response = await fetch('/api/dataset', { credentials: 'include' });
@@ -130,6 +135,10 @@ export const ActiveDatasetService = {
       hasTarget,
       updatedAt: new Date().toISOString()
     };
+
+    if (isStaticDemo) {
+      return saveInBrowser(dataset, 'Running in static demo mode.');
+    }
 
     try {
       const savedDataset = await saveInMongo(dataset);

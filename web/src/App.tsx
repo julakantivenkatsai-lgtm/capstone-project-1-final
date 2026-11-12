@@ -237,7 +237,7 @@ export const App: React.FC = () => {
         hasDataset={records.length > 0}
         hasAnomalyModel={isAnomalyModelTrained}
         historyCount={history.length}
-        onLogout={handleLogout}
+        onLogout={AuthService.isStaticDemo ? undefined : handleLogout}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowX: 'hidden' }}>
         <Header
