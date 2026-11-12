@@ -9,7 +9,8 @@ import {
   DatasetValidationResult,
   ModelComparisonResult,
   NavigationTab,
-  PredictionHistoryItem
+  PredictionHistoryItem,
+  PredictionInput
 } from './types';
 import { ActiveDatasetService, SavedDatasetResult } from './data/activeDatasetService';
 import { DatasetService } from './data/datasetService';
@@ -26,6 +27,15 @@ import { AnomalyView } from './views/AnomalyView';
 import { ExplainabilityView } from './views/ExplainabilityView';
 import { HistoryView } from './views/HistoryView';
 import { AboutView } from './views/AboutView';
+
+const DEFAULT_PREDICTION_INPUT: PredictionInput = {
+  Type: 'L',
+  Air_temperature_K: 298.1,
+  Process_temperature_K: 308.6,
+  Rotational_speed_rpm: 1500,
+  Torque_Nm: 40,
+  Tool_wear_min: 0
+};
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>('dataset');
@@ -207,7 +217,7 @@ export const App: React.FC = () => {
   };
 
   const handleTabChange = (tab: NavigationTab) => {
-    const dataIndependentTabs: NavigationTab[] = ['dataset', 'about', 'dashboard', 'history'];
+    const dataIndependentTabs: NavigationTab[] = ['dataset', 'about', 'dashboard', 'history', 'predict', 'batch', 'explain'];
     if (!records.length && !dataIndependentTabs.includes(tab)) return;
     if (tab === 'anomaly' && !isAnomalyModelTrained) return;
     setActiveTab(tab);
@@ -216,7 +226,7 @@ export const App: React.FC = () => {
   const canTrainModels = stats.hasTarget &&
     records.filter(record => record.Machine_failure === 1).length >= 7 &&
     records.filter(record => record.Machine_failure === 0).length >= 7;
-  const firstRecord = records[0];
+  const initialPredictionInput = records[0] ?? DEFAULT_PREDICTION_INPUT;
 
   if (!authChecked) {
     return <div style={{ color: '#F8FAFC', padding: '2rem' }}>Checking authentication…</div>;
@@ -269,14 +279,14 @@ export const App: React.FC = () => {
               onDatasetUpdate={handleDatasetUpdate}
             />
           )}
-          {activeTab === 'predict' && firstRecord && (
-            <PredictView onPredictionSaved={handlePredictionSaved} initialRecord={firstRecord} isModelTrained={isModelTrained} />
+          {activeTab === 'predict' && (
+            <PredictView onPredictionSaved={handlePredictionSaved} initialRecord={initialPredictionInput} isModelTrained={isModelTrained} />
           )}
-          {activeTab === 'batch' && records.length > 0 && <BatchView isModelTrained={isModelTrained} />}
+          {activeTab === 'batch' && <BatchView isModelTrained={isModelTrained} />}
           {activeTab === 'models' && <ModelComparisonView comparison={comparison} isRetraining={isRetraining} onGoToDataset={() => handleTabChange('dataset')} />}
           {activeTab === 'anomaly' && isAnomalyModelTrained && records.length > 0 && <AnomalyView records={records} />}
-          {activeTab === 'explain' && firstRecord && (
-            <ExplainabilityView comparison={comparison} initialRecord={firstRecord} isModelTrained={isModelTrained} />
+          {activeTab === 'explain' && (
+            <ExplainabilityView comparison={comparison} initialRecord={initialPredictionInput} isModelTrained={isModelTrained} />
           )}
           {activeTab === 'history' && <HistoryView history={history} onClearHistory={handleClearHistory} />}
           {activeTab === 'about' && <AboutView />}

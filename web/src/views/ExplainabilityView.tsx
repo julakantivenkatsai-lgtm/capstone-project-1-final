@@ -3,12 +3,12 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { AI4IRecord, ModelComparisonResult, PredictionInput } from '../types';
+import { ModelComparisonResult, PredictionInput } from '../types';
 import { MLEngine, mlEngine } from '../ml/engine';
 
 interface ExplainabilityViewProps {
   comparison: ModelComparisonResult | null;
-  initialRecord: AI4IRecord;
+  initialRecord: PredictionInput;
   isModelTrained: boolean;
 }
 

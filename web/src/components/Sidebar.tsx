@@ -121,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {navItems.map(item => {
             const isActive = activeTab === item.id;
-            const dataIndependent = ['dataset', 'about', 'dashboard', 'history'].includes(item.id);
+            const dataIndependent = ['dataset', 'about', 'dashboard', 'history', 'predict', 'batch', 'explain'].includes(item.id);
             const isDisabled = (!hasDataset && !dataIndependent) ||
               (item.id === 'anomaly' && !hasAnomalyModel);
             const disabledReason = !hasDataset

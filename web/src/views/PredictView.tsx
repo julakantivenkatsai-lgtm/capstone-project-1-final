@@ -4,13 +4,13 @@ import {
   CheckCircle2,
   BookmarkPlus
 } from 'lucide-react';
-import { AI4IRecord, PhysicalAssessment, PredictionInput, PredictionOutput } from '../types';
+import { PhysicalAssessment, PredictionInput, PredictionOutput } from '../types';
 import { MLEngine, mlEngine } from '../ml/engine';
 import { StorageService } from '../services/storageService';
 
 interface PredictViewProps {
   onPredictionSaved: (pred: PredictionOutput) => void;
-  initialRecord: AI4IRecord;
+  initialRecord: PredictionInput;
   isModelTrained: boolean;
 }
 
@@ -334,7 +334,7 @@ export const PredictView: React.FC<PredictViewProps> = ({ onPredictionSaved, ini
               <Cpu size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
               <div style={{ fontSize: '13px', fontWeight: 600, color: '#94A3B8' }}>No inference computed yet</div>
               <div style={{ fontSize: '11px', maxWidth: '300px', marginTop: '4px' }}>
-                Adjust telemetry inputs based on the first uploaded row, then run {isModelTrained ? 'a prediction' : 'physical checks'}.
+                Adjust the telemetry inputs, then run {isModelTrained ? 'a prediction' : 'physical checks'}.
               </div>
             </div>
           )}

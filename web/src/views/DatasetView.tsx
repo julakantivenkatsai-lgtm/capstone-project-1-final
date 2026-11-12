@@ -147,7 +147,7 @@ export const DatasetView: React.FC<DatasetViewProps> = ({
                 Required: Type, Air temp, Process temp, Rotational speed, Torque, Tool wear
               </div>
               <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                Add Machine failure labels (0/1), with 7+ rows per class, to enable failure-prediction tools.
+                Add Machine failure labels (0/1), with 7+ rows per class, to enable trained ML probabilities and model comparison.
               </div>
             </div>
           </div>
