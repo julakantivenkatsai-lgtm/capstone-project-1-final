@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   ShieldCheck,
-  Activity
+  Activity,
+  Database
 } from 'lucide-react';
 import {
   LineChart,
@@ -17,16 +18,31 @@ import { ModelComparisonResult, ModelMetrics } from '../types';
 
 interface ModelComparisonViewProps {
   comparison: ModelComparisonResult | null;
+  isRetraining: boolean;
+  onGoToDataset: () => void;
 }
 
-export const ModelComparisonView: React.FC<ModelComparisonViewProps> = ({ comparison }) => {
+export const ModelComparisonView: React.FC<ModelComparisonViewProps> = ({ comparison, isRetraining, onGoToDataset }) => {
   const [activeCurve, setActiveCurve] = useState<'roc' | 'pr'>('roc');
 
   if (!comparison) {
     return (
-      <div className="maintiq-card" style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
-        <Activity size={32} style={{ marginBottom: '12px' }} />
-        <div>Models are currently being trained in the browser. Please wait...</div>
+      <div className="maintiq-card" style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>
+        <Activity size={32} style={{ marginBottom: '12px', color: '#14B8A6' }} />
+        <h2 style={{ color: '#F8FAFC', fontSize: '16px', margin: '0 0 8px' }}>
+          {isRetraining ? 'Training models from the active dataset…' : 'Model comparison needs labeled data'}
+        </h2>
+        <p style={{ maxWidth: '580px', margin: '0 auto 16px', fontSize: '13px', lineHeight: 1.6 }}>
+          {isRetraining
+            ? 'The comparison will appear when training completes.'
+            : 'Upload a CSV with a Machine failure target containing both 0 and 1 labels, with at least 7 rows from each class. Sensor-only files cannot produce honest classifier metrics.'}
+        </p>
+        {!isRetraining && (
+          <button onClick={onGoToDataset} className="maintiq-btn-primary">
+            <Database size={14} />
+            <span>Open Dataset &amp; EDA</span>
+          </button>
+        )}
       </div>
     );
   }
@@ -35,15 +51,18 @@ export const ModelComparisonView: React.FC<ModelComparisonViewProps> = ({ compar
   const models: ModelMetrics[] = [xgb, rf, lr];
 
   // Prepare combined ROC/PR curve points for Recharts
-  const maxPoints = Math.max(xgb.rocCurve.length, rf.rocCurve.length, lr.rocCurve.length);
+  const xgbCurve = activeCurve === 'roc' ? xgb.rocCurve : xgb.prCurve;
+  const rfCurve = activeCurve === 'roc' ? rf.rocCurve : rf.prCurve;
+  const lrCurve = activeCurve === 'roc' ? lr.rocCurve : lr.prCurve;
+  const maxPoints = Math.max(xgbCurve.length, rfCurve.length, lrCurve.length);
   const chartData = [];
   for (let i = 0; i < maxPoints; i++) {
-    const xVal = xgb.rocCurve[i]?.x ?? (i / maxPoints);
+    const xVal = xgbCurve[i]?.x ?? (i / maxPoints);
     chartData.push({
       x: xVal,
-      xgb: activeCurve === 'roc' ? (xgb.rocCurve[i]?.y ?? null) : (xgb.prCurve[i]?.y ?? null),
-      rf: activeCurve === 'roc' ? (rf.rocCurve[i]?.y ?? null) : (rf.prCurve[i]?.y ?? null),
-      lr: activeCurve === 'roc' ? (lr.rocCurve[i]?.y ?? null) : (lr.prCurve[i]?.y ?? null),
+      xgb: xgbCurve[i]?.y ?? null,
+      rf: rfCurve[i]?.y ?? null,
+      lr: lrCurve[i]?.y ?? null,
     });
   }
 
@@ -93,7 +112,7 @@ export const ModelComparisonView: React.FC<ModelComparisonViewProps> = ({ compar
               Final Test-Partition Performance Comparison
             </h2>
             <p style={{ fontSize: '12px', color: '#94A3B8' }}>
-              Target is class-imbalanced (~3.4%), evaluated primarily via F1-Score and PR-AUC, not accuracy alone
+              Uploaded target distribution is evaluated primarily via F1-Score and PR-AUC, not accuracy alone
             </p>
           </div>
           <span className="maintiq-badge badge-teal">@kanaries/ml Real Inference</span>

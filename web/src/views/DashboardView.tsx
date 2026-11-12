@@ -13,15 +13,16 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 import { MetricCard } from '../components/MetricCard';
-import { DatasetStatistics, ModelComparisonResult, NavigationTab } from '../types';
+import { AI4IRecord, DatasetStatistics, ModelComparisonResult, NavigationTab } from '../types';
 
 interface DashboardViewProps {
   stats: DatasetStatistics;
+  records: AI4IRecord[];
   comparison: ModelComparisonResult | null;
   setActiveTab: (tab: NavigationTab) => void;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ stats, comparison, setActiveTab }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ stats, records, comparison, setActiveTab }) => {
   const bestModel = comparison
     ? (comparison.bestModelName === 'xgboost'
         ? comparison.xgboost
@@ -34,32 +35,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, comparison,
   const typeChartData = [
     {
       type: 'L (Low Quality)',
-      share: '50% Fleet',
       count: stats.typeDistribution.L,
       color: '#14B8A6'
     },
     {
       type: 'M (Medium)',
-      share: '30% Fleet',
       count: stats.typeDistribution.M,
       color: '#3B82F6'
     },
     {
       type: 'H (High Quality)',
-      share: '20% Fleet',
       count: stats.typeDistribution.H,
       color: '#8B5CF6'
     }
   ];
+  const outOfRangeRecords = records.filter(record =>
+    record.Rotational_speed_rpm < 1300 ||
+    record.Rotational_speed_rpm > 2500 ||
+    record.Torque_Nm > 60 ||
+    record.Torque_Nm < 15
+  ).length;
+  const outOfRangeRate = records.length > 0
+    ? `${((outOfRangeRecords / records.length) * 100).toFixed(1)}%`
+    : 'N/A';
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {records.length === 0 && (
+        <div role="status" className="maintiq-card" style={{ color: '#CBD5E1', fontSize: '13px' }}>
+          No dataset is loaded yet. Upload a CSV in <strong>Dataset &amp; EDA</strong> to populate dashboard metrics.
+        </div>
+      )}
       {/* Metric Cards Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
         <MetricCard
           label="Telemetry Records"
           value={stats.totalRecords.toLocaleString()}
-          subtext="UCI AI4I 2020 Active Benchmark"
+          subtext="Active uploaded dataset"
           icon={<Database size={18} />}
           accentColor="#14B8A6"
           trend={{ text: 'Zero Data Leakage', isNeutral: true }}
@@ -75,21 +87,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, comparison,
           onClick={() => setActiveTab('dataset')}
         />
         <MetricCard
-          label={`Best Model (${bestModel?.displayName || 'XGBoost'})`}
-          value={bestModel ? bestModel.f1.toFixed(3) : '0.862'}
-          subtext="Test F1-score (val-tuned threshold)"
+          label={`Best Model (${bestModel?.displayName || 'None'})`}
+          value={bestModel ? bestModel.f1.toFixed(3) : 'N/A'}
+          subtext={bestModel ? 'Test F1-score (val-tuned threshold)' : 'Upload labeled data to train'}
           icon={<Award size={18} />}
           accentColor="#10B981"
-          trend={{ text: `ROC-AUC: ${bestModel?.rocAuc.toFixed(3) || '0.941'}`, isPositive: true }}
+          trend={{ text: bestModel ? `ROC-AUC: ${bestModel.rocAuc.toFixed(3)}` : 'No model', isNeutral: true }}
           onClick={() => setActiveTab('models')}
         />
         <MetricCard
-          label="Anomaly Detection"
-          value="4.8%"
-          subtext="Isolation Forest Outlier Rate"
+          label="Out-of-range Telemetry"
+          value={outOfRangeRate}
+          subtext={records.length ? `${outOfRangeRecords} / ${records.length} uploaded rows` : 'No uploaded data'}
           icon={<ShieldAlert size={18} />}
           accentColor="#8B5CF6"
-          trend={{ text: 'Sensors > 0.58', isNeutral: true }}
+          trend={{ text: 'Speed / torque screening', isNeutral: true }}
           onClick={() => setActiveTab('anomaly')}
         />
       </div>
@@ -101,7 +113,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, comparison,
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div>
               <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>Equipment Fleet Distribution</h2>
-              <p style={{ fontSize: '12px', color: '#94A3B8' }}>Distribution across L (50%), M (30%), and H (20%) variants</p>
+              <p style={{ fontSize: '12px', color: '#94A3B8' }}>Machine types in the uploaded dataset</p>
             </div>
             <button
               onClick={() => setActiveTab('dataset')}
@@ -137,7 +149,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, comparison,
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div>
               <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>Physical Failure Envelopes</h2>
-              <p style={{ fontSize: '12px', color: '#94A3B8' }}>Deterministic physical boundaries defined in UCI AI4I 2020</p>
+              <p style={{ fontSize: '12px', color: '#94A3B8' }}>Domain thresholds applied to the uploaded machine telemetry</p>
             </div>
             <span className="maintiq-badge badge-teal">Domain Physics</span>
           </div>
@@ -196,7 +208,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, comparison,
             Academic Integrity Notice
           </div>
           <p style={{ fontSize: '12px', color: '#94A3B8', lineHeight: 1.5 }}>
-            Dataset is based on the <strong>UCI AI4I 2020 synthetic benchmark</strong>. The failure mode indicators (TWF, HDF, PWF, OSF, RNF) are strictly excluded from prediction features to guarantee zero data leakage.
+            Metrics and distributions on this page are calculated from the active uploaded dataset. Failure-mode indicators and identifiers are excluded from prediction features.
           </p>
         </div>
       </div>

@@ -7,7 +7,7 @@
 export type MachineType = 'L' | 'M' | 'H';
 
 /**
- * Raw AI4I 2020 dataset record schema.
+ * Uploaded machine telemetry record schema.
  * Note: TWF, HDF, PWF, OSF, RNF are failure modes; they MUST NOT be used as predictive features.
  */
 export interface AI4IRecord {
@@ -28,8 +28,15 @@ export interface AI4IRecord {
   RNF?: number; // Random Failure
 }
 
+export interface ActiveDataset {
+  name: string;
+  hasTarget: boolean;
+  records: AI4IRecord[];
+  updatedAt: string;
+}
+
 /**
- * The 6 authorized prediction features strictly compliant with UCI AI4I specification:
+ * The 6 prediction features required by the uploaded CSV schema:
  * 1. Type
  * 2. Air temperature [K]
  * 3. Process temperature [K]
@@ -52,6 +59,13 @@ export interface DerivedPhysicalMetrics {
   deltaT: number;             // Process Temp - Air Temp (Thermal dissipation gradient, normal > 8.6 K)
   powerWatts: number;         // Torque * (Rotational speed in rad/s), safe envelope: 3500 - 9000 W
   overstrainIndex: number;    // Tool wear * Torque, failure threshold depends on Type
+}
+
+export interface PhysicalAssessment {
+  riskCategory: RiskLevel;
+  physicalMetrics: DerivedPhysicalMetrics;
+  primaryRiskFactor: string;
+  recommendation: string;
 }
 
 export interface PredictionOutput {

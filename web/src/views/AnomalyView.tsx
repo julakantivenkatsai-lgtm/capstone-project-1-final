@@ -12,22 +12,23 @@ interface AnomalyViewProps {
 
 export const AnomalyView: React.FC<AnomalyViewProps> = ({ records }) => {
   const [sensitivity, setSensitivity] = useState<number>(0.58);
-  const [testInput, setTestInput] = useState({
-    speed: 1540,
-    torque: 40.0,
-    toolWear: 75,
-    airTemp: 298.2,
-    procTemp: 308.6
-  });
+  const [testInput, setTestInput] = useState(() => ({
+    speed: records[0].Rotational_speed_rpm,
+    torque: records[0].Torque_Nm,
+    toolWear: records[0].Tool_wear_min,
+    airTemp: records[0].Air_temperature_K,
+    procTemp: records[0].Process_temperature_K
+  }));
 
-  const testScore = mlEngine.predict({
-    Type: 'L',
+  const anomalyScore = mlEngine.anomalyScore({
+    Type: records[0].Type,
     Air_temperature_K: testInput.airTemp,
     Process_temperature_K: testInput.procTemp,
     Rotational_speed_rpm: testInput.speed,
     Torque_Nm: testInput.torque,
     Tool_wear_min: testInput.toolWear
-  }, 'xgboost', sensitivity);
+  });
+  const isAnomaly = anomalyScore >= sensitivity;
 
   // Generate Speed vs Torque scatter sample from active dataset
   const sampleData = records.slice(0, 150).map(r => {
@@ -116,8 +117,8 @@ export const AnomalyView: React.FC<AnomalyViewProps> = ({ records }) => {
         <div className="maintiq-card" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>Live Anomaly Probe</h2>
-            <span className={`maintiq-badge ${testScore.isAnomaly ? 'badge-anomaly' : 'badge-normal'}`}>
-              {testScore.isAnomaly ? 'Anomaly Flagged' : 'Normal State'}
+            <span className={`maintiq-badge ${isAnomaly ? 'badge-anomaly' : 'badge-normal'}`}>
+              {isAnomaly ? 'Anomaly Flagged' : 'Normal State'}
             </span>
           </div>
 
@@ -172,11 +173,11 @@ export const AnomalyView: React.FC<AnomalyViewProps> = ({ records }) => {
               <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>
                 Normalized Isolation Forest Score
               </div>
-              <div style={{ fontSize: '32px', fontWeight: 800, color: testScore.isAnomaly ? '#8B5CF6' : '#10B981', margin: '4px 0' }} className="sensor-metric">
-                {testScore.anomalyScore}
+              <div style={{ fontSize: '32px', fontWeight: 800, color: isAnomaly ? '#8B5CF6' : '#10B981', margin: '4px 0' }} className="sensor-metric">
+                {anomalyScore.toFixed(3)}
               </div>
               <div style={{ fontSize: '11px', color: '#64748B' }}>
-                Decision: {testScore.anomalyScore >= sensitivity ? 'Flagged as Outlier' : 'Within Operating Bounds'}
+                Decision: {isAnomaly ? 'Flagged as Outlier' : 'Within Operating Bounds'}
               </div>
             </div>
 

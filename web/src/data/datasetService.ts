@@ -1,6 +1,6 @@
 /**
  * MaintIQ – Dataset Service & Validation Engine
- * Loads reference UCI AI4I 2020 dataset, parses uploaded CSV files in-browser,
+ * Parses uploaded CSV files in-browser,
  * checks data validity, and strips data-leakage features.
  */
 
@@ -12,11 +12,8 @@ import {
   MachineType,
   ValidationIssue
 } from '../types';
-import rawDataset from './ai4i2020.json';
 
 export class DatasetService {
-  private static cachedReference: AI4IRecord[] | null = null;
-
   private static parseRows(csvText: string): { rows: string[][]; malformed: boolean } {
     const rows: string[][] = [];
     let row: string[] = [];
@@ -55,16 +52,6 @@ export class DatasetService {
     row.push(field.trim());
     if (row.some(value => value !== '')) rows.push(row);
     return { rows, malformed: false };
-  }
-
-  /**
-   * Return the bundled UCI AI4I 2020 Predictive Maintenance benchmark dataset.
-   */
-  static getReferenceDataset(): AI4IRecord[] {
-    if (!this.cachedReference) {
-      this.cachedReference = rawDataset as AI4IRecord[];
-    }
-    return this.cachedReference;
   }
 
   /**
@@ -404,27 +391,4 @@ export class DatasetService {
     };
   }
 
-  /**
-   * Generate downloadable sample CSV template
-   */
-  static generateSampleCSV(): string {
-    const records = this.getReferenceDataset().slice(0, 50);
-    const headers = [
-      'Type',
-      'Air temperature [K]',
-      'Process temperature [K]',
-      'Rotational speed [rpm]',
-      'Torque [Nm]',
-      'Tool wear [min]'
-    ];
-    const rows = records.map(r => [
-      r.Type,
-      r.Air_temperature_K,
-      r.Process_temperature_K,
-      r.Rotational_speed_rpm,
-      r.Torque_Nm,
-      r.Tool_wear_min
-    ]);
-    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-  }
 }

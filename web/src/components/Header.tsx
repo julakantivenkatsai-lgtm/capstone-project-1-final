@@ -8,6 +8,7 @@ interface HeaderProps {
   totalRecords: number;
   failureRate: number | null;
   isModelTrained: boolean;
+  isAnomalyModelTrained: boolean;
   onRetrain?: () => void;
   isRetraining?: boolean;
 }
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   totalRecords,
   failureRate,
   isModelTrained,
+  isAnomalyModelTrained,
   onRetrain,
   isRetraining = false
 }) => {
@@ -28,7 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
     },
     dataset: {
       title: 'Dataset Upload & Exploratory Analysis',
-      subtitle: 'Inspect UCI AI4I 2020 telemetry, validate CSV schema & explore sensor distributions'
+      subtitle: 'Upload your telemetry CSV, validate its schema & explore sensor distributions'
     },
     predict: {
       title: 'Single-Machine Predictive Inference',
@@ -60,7 +62,27 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const current = titles[activeTab];
+  const current = !isModelTrained && activeTab === 'predict'
+    ? {
+      title: 'Single-Machine Physical Assessment',
+      subtitle: 'Check sensor inputs against physical thresholds; trained failure probabilities require labeled data'
+    }
+    : !isModelTrained && activeTab === 'batch'
+      ? {
+        title: 'Batch Physical Assessment',
+        subtitle: 'Process uploaded CSV or ZIP telemetry using physical thresholds; no ML probability is available'
+      }
+      : !isModelTrained && activeTab === 'models'
+        ? {
+          title: 'Machine Learning Model Benchmarking',
+          subtitle: 'Upload labeled failure data to enable model comparison metrics'
+        }
+        : !isModelTrained && activeTab === 'explain'
+          ? {
+            title: 'Physical What-If Analysis',
+            subtitle: 'Explore physical threshold changes; labeled data is required for model explanations'
+          }
+          : titles[activeTab];
 
   return (
     <header
@@ -102,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
           }}
         >
           <Database size={14} color="#14B8A6" />
-          <span style={{ color: '#E2E8F0', fontWeight: 600 }}>{datasetName}</span>
+          <span style={{ color: '#E2E8F0', fontWeight: 600 }}>{datasetName || 'No uploaded dataset'}</span>
           <span style={{ color: '#64748B' }}>•</span>
           <span style={{ color: '#94A3B8' }}>{totalRecords.toLocaleString()} rows</span>
           <span style={{ color: '#64748B' }}>•</span>
@@ -129,10 +151,20 @@ export const Header: React.FC<HeaderProps> = ({
               <ShieldCheck size={14} color="#10B981" />
               <span style={{ color: '#10B981', fontWeight: 700 }}>Models Fitted</span>
             </>
-          ) : (
+          ) : isAnomalyModelTrained ? (
+            <>
+              <ShieldCheck size={14} color="#10B981" />
+              <span style={{ color: '#10B981', fontWeight: 700 }}>Anomaly Detector Fitted</span>
+            </>
+          ) : isRetraining ? (
             <>
               <Activity size={14} color="#F59E0B" />
               <span style={{ color: '#F59E0B', fontWeight: 700 }}>Fitting Models...</span>
+            </>
+          ) : (
+            <>
+              <Activity size={14} color="#94A3B8" />
+              <span style={{ color: '#94A3B8', fontWeight: 700 }}>Models not trained</span>
             </>
           )}
         </div>

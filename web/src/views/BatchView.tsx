@@ -7,15 +7,18 @@ import {
   Play
 } from 'lucide-react';
 import { unzip } from 'fflate';
-import { PredictionInput, PredictionOutput } from '../types';
+import { PhysicalAssessment, PredictionInput, PredictionOutput, RiskLevel } from '../types';
 import { DatasetService } from '../data/datasetService';
-import { mlEngine } from '../ml/engine';
+import { MLEngine, mlEngine } from '../ml/engine';
 import { StorageService } from '../services/storageService';
 
 interface BatchPredictionRow {
   sourceFile: string;
   sourceRow: number;
-  prediction: PredictionOutput;
+  input: PredictionInput;
+  result:
+    | { mode: 'model'; prediction: PredictionOutput }
+    | { mode: 'physical'; assessment: PhysicalAssessment };
 }
 
 interface UploadFileResult {
@@ -44,6 +47,8 @@ const MAX_ZIP_SIZE = 25 * 1024 * 1024;
 const MAX_ZIP_CSV_SIZE = 100 * 1024 * 1024;
 
 const yieldToBrowser = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+const getRiskCategory = (result: BatchPredictionRow['result']): RiskLevel =>
+  result.mode === 'model' ? result.prediction.riskCategory : result.assessment.riskCategory;
 
 const extractCsvFiles = async (file: File): Promise<{
   entries: { name: string; data: Uint8Array }[];
@@ -89,7 +94,11 @@ const extractCsvFiles = async (file: File): Promise<{
 
 const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
 
-export const BatchView: React.FC = () => {
+interface BatchViewProps {
+  isModelTrained: boolean;
+}
+
+export const BatchView: React.FC<BatchViewProps> = ({ isModelTrained }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -98,7 +107,7 @@ export const BatchView: React.FC = () => {
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
   const [executionSummary, setExecutionSummary] = useState<string | null>(null);
   const [filterRisk, setFilterRisk] = useState<'all' | 'Normal' | 'Warning' | 'Critical'>('all');
-  const [batchStats, setBatchStats] = useState<{ total: number; critical: number; warning: number; normal: number; anomalies: number } | null>(null);
+  const [batchStats, setBatchStats] = useState<{ total: number; critical: number; warning: number; normal: number; anomalies: number | null } | null>(null);
 
   const handleFilesSelected = (files: File[]) => {
     setSelectedFiles(files);
@@ -242,16 +251,20 @@ export const BatchView: React.FC = () => {
               Torque_Nm: record.Torque_Nm,
               Tool_wear_min: record.Tool_wear_min
             };
-            const prediction = mlEngine.predict(input, 'xgboost');
+            const result = isModelTrained
+              ? { mode: 'model' as const, prediction: mlEngine.predict(input, 'xgboost') }
+              : { mode: 'physical' as const, assessment: MLEngine.assessPhysicalConditions(input) };
             predictionsForFile.push({
               sourceFile: job.name,
               sourceRow: record.UDI + 1,
-              prediction
+              input,
+              result
             });
-            if (prediction.riskCategory === 'Critical') critical++;
-            else if (prediction.riskCategory === 'Warning') warning++;
+            const riskCategory = getRiskCategory(result);
+            if (riskCategory === 'Critical') critical++;
+            else if (riskCategory === 'Warning') warning++;
             else normal++;
-            if (prediction.isAnomaly) anomalies++;
+            if (result.mode === 'model' && result.prediction.isAnomaly) anomalies++;
 
             if ((rowIndex + 1) % 50 === 0 || rowIndex === records.length - 1) {
               setProcessingProgress({
@@ -273,12 +286,12 @@ export const BatchView: React.FC = () => {
             critical,
             warning,
             normal,
-            anomalies
+            anomalies: isModelTrained ? anomalies : null
           });
           fileReports.push({
             name: job.name,
             status: validation.skippedRows > 0 ? 'warning' : 'success',
-            message: `Generated predictions for ${records.length} row(s).`,
+            message: `Generated ${isModelTrained ? 'predictions' : 'physical assessments'} for ${records.length} row(s).`,
             details: validation.issues.map(issue => issue.message)
           });
           completedCsvFiles++;
@@ -296,15 +309,17 @@ export const BatchView: React.FC = () => {
       }
 
       if (allResults.length > 0) {
-        StorageService.addBatchPredictions(
-          allResults.map(result => result.prediction),
-          `batch_${Date.now()}`
+        const modelPredictions = allResults.flatMap(result =>
+          result.result.mode === 'model' ? [result.result.prediction] : []
         );
+        if (modelPredictions.length > 0) {
+          StorageService.addBatchPredictions(modelPredictions, `batch_${Date.now()}`);
+        }
       }
       const failedFiles = fileReports.filter(result => result.status === 'error' || result.status === 'skipped').length;
       const warningFiles = fileReports.filter(result => result.status === 'warning').length;
       setExecutionSummary(
-        `Execution finished: ${allResults.length} prediction(s) from ${completedCsvFiles} CSV file(s).${warningFiles ? ` ${warningFiles} file(s) completed with row warnings.` : ''}${failedFiles ? ` ${failedFiles} file(s) could not be processed; see details above.` : ''}`
+        `Execution finished: ${allResults.length} ${isModelTrained ? 'prediction(s)' : 'physical assessment(s)'} from ${completedCsvFiles} CSV file(s).${warningFiles ? ` ${warningFiles} file(s) completed with row warnings.` : ''}${failedFiles ? ` ${failedFiles} file(s) could not be processed; see details above.` : ''}`
       );
     } finally {
       setIsProcessing(false);
@@ -324,6 +339,7 @@ export const BatchView: React.FC = () => {
       'Speed_rpm',
       'Torque_Nm',
       'Tool_wear_min',
+      'Assessment_Mode',
       'Failure_Probability',
       'Risk_Category',
       'Anomaly_Score',
@@ -331,27 +347,36 @@ export const BatchView: React.FC = () => {
       'Spindle_Power_W',
       'Thermal_DeltaT_K',
       'Overstrain_Index',
+      'Primary_Risk_Factor',
       'Recommendation'
     ];
-    const rows = batchResults.map(({ sourceFile, sourceRow, prediction }, i) => [
-      csvCell(sourceFile),
-      sourceRow,
-      `BATCH_${i + 1}`,
-      prediction.inputs.Type,
-      prediction.inputs.Air_temperature_K,
-      prediction.inputs.Process_temperature_K,
-      prediction.inputs.Rotational_speed_rpm,
-      prediction.inputs.Torque_Nm,
-      prediction.inputs.Tool_wear_min,
-      (prediction.probability * 100).toFixed(1) + '%',
-      prediction.riskCategory,
-      prediction.anomalyScore.toFixed(3),
-      prediction.isAnomaly ? 'YES' : 'NO',
-      prediction.physicalMetrics.powerWatts,
-      prediction.physicalMetrics.deltaT.toFixed(1),
-      prediction.physicalMetrics.overstrainIndex,
-      csvCell(prediction.recommendation)
-    ]);
+    const rows = batchResults.map(({ sourceFile, sourceRow, input, result }, i) => {
+      const isModelResult = result.mode === 'model';
+      const metrics = isModelResult ? result.prediction.physicalMetrics : result.assessment.physicalMetrics;
+      const primaryRiskFactor = isModelResult ? result.prediction.primaryRiskFactor : result.assessment.primaryRiskFactor;
+      const recommendation = isModelResult ? result.prediction.recommendation : result.assessment.recommendation;
+      return [
+        csvCell(sourceFile),
+        sourceRow,
+        `BATCH_${i + 1}`,
+        input.Type,
+        input.Air_temperature_K,
+        input.Process_temperature_K,
+        input.Rotational_speed_rpm,
+        input.Torque_Nm,
+        input.Tool_wear_min,
+        result.mode,
+        isModelResult ? (result.prediction.probability * 100).toFixed(1) + '%' : '',
+        getRiskCategory(result),
+        isModelResult ? result.prediction.anomalyScore.toFixed(3) : '',
+        isModelResult ? (result.prediction.isAnomaly ? 'YES' : 'NO') : '',
+        metrics.powerWatts,
+        metrics.deltaT.toFixed(1),
+        metrics.overstrainIndex,
+        csvCell(primaryRiskFactor),
+        csvCell(recommendation)
+      ];
+    });
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -365,9 +390,9 @@ export const BatchView: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const filteredResults = batchResults.filter(({ prediction }) => {
+  const filteredResults = batchResults.filter(({ result }) => {
     if (filterRisk === 'all') return true;
-    return prediction.riskCategory === filterRisk;
+    return getRiskCategory(result) === filterRisk;
   });
 
   const progressValue = processingProgress
@@ -396,8 +421,14 @@ export const BatchView: React.FC = () => {
       <div className="maintiq-card" style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>Batch Telemetry Inference</h2>
-            <p style={{ fontSize: '12px', color: '#94A3B8' }}>Select multiple CSV files or a ZIP archive. Each valid row updates the prediction results.</p>
+            <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>
+              {isModelTrained ? 'Batch Telemetry Inference' : 'Batch Physical Assessment'}
+            </h2>
+            <p style={{ fontSize: '12px', color: '#94A3B8' }}>
+              Select multiple CSV files or a ZIP archive. {isModelTrained
+                ? 'Each valid row receives a trained-model prediction.'
+                : 'Each valid row is checked against physical thresholds; no ML probability or anomaly score is produced.'}
+            </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
@@ -418,6 +449,12 @@ export const BatchView: React.FC = () => {
             )}
           </div>
         </div>
+
+        {!isModelTrained && (
+          <div role="status" style={{ marginTop: '12px', padding: '10px 12px', borderRadius: '6px', background: '#172440', color: '#BFDBFE', fontSize: '12px' }}>
+            Physical-only mode. Upload labeled data with at least 7 rows per class to enable trained predictions and anomaly scores.
+          </div>
+        )}
 
         <div
           onDragOver={event => event.preventDefault()}
@@ -540,13 +577,15 @@ export const BatchView: React.FC = () => {
           <div className="maintiq-card" style={{ padding: '14px', borderLeft: '4px solid #10B981' }}>
             <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700 }}>NORMAL</div>
             <div style={{ fontSize: '22px', fontWeight: 800, color: '#10B981' }}>{batchStats.normal}</div>
-            <div style={{ fontSize: '10px', color: '#64748B' }}>Within Bounds</div>
+            <div style={{ fontSize: '10px', color: '#64748B' }}>{isModelTrained ? 'Model risk below warning' : 'Within configured thresholds'}</div>
           </div>
-          <div className="maintiq-card" style={{ padding: '14px', borderLeft: '4px solid #8B5CF6' }}>
-            <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700 }}>ANOMALIES</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#8B5CF6' }}>{batchStats.anomalies}</div>
-            <div style={{ fontSize: '10px', color: '#64748B' }}>Isolation Forest</div>
-          </div>
+          {batchStats.anomalies !== null && (
+            <div className="maintiq-card" style={{ padding: '14px', borderLeft: '4px solid #8B5CF6' }}>
+              <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700 }}>ANOMALIES</div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: '#8B5CF6' }}>{batchStats.anomalies}</div>
+              <div style={{ fontSize: '10px', color: '#64748B' }}>Isolation Forest</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -555,7 +594,7 @@ export const BatchView: React.FC = () => {
         <div className="maintiq-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>
-              Batch Classification Records ({filteredResults.length} / {batchResults.length})
+              Batch {isModelTrained ? 'Prediction' : 'Assessment'} Records ({filteredResults.length} / {batchResults.length})
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Filter size={14} color="#64748B" />
@@ -589,42 +628,48 @@ export const BatchView: React.FC = () => {
                   <th style={{ padding: '8px 10px' }}>Speed</th>
                   <th style={{ padding: '8px 10px' }}>Torque</th>
                   <th style={{ padding: '8px 10px' }}>Wear</th>
-                  <th style={{ padding: '8px 10px' }}>Probability</th>
+                  <th style={{ padding: '8px 10px' }}>{isModelTrained ? 'Failure Probability' : 'Assessment Mode'}</th>
                   <th style={{ padding: '8px 10px' }}>Risk Category</th>
-                  <th style={{ padding: '8px 10px' }}>Anomaly</th>
+                  <th style={{ padding: '8px 10px' }}>{isModelTrained ? 'Anomaly' : 'Anomaly Score'}</th>
                   <th style={{ padding: '8px 10px' }}>Directive</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredResults.map(({ sourceFile, sourceRow, prediction: r }) => (
-                  <tr key={r.id} style={{ borderBottom: '1px solid #1E293B' }}>
+                {filteredResults.map(({ sourceFile, sourceRow, input, result }, index) => {
+                  const isModelResult = result.mode === 'model';
+                  const riskCategory = getRiskCategory(result);
+                  const primaryRiskFactor = isModelResult ? result.prediction.primaryRiskFactor : result.assessment.primaryRiskFactor;
+                  const recommendation = isModelResult ? result.prediction.recommendation : result.assessment.recommendation;
+                  return (
+                  <tr key={`${sourceFile}-${sourceRow}-${index}`} style={{ borderBottom: '1px solid #1E293B' }}>
                     <td style={{ padding: '8px 10px', color: '#64748B', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${sourceFile} row ${sourceRow}`}>
                       {sourceFile} · {sourceRow}
                     </td>
-                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>{r.inputs.Type}</td>
-                    <td style={{ padding: '8px 10px', color: '#94A3B8' }} className="sensor-metric">{r.inputs.Rotational_speed_rpm} rpm</td>
-                    <td style={{ padding: '8px 10px', color: '#94A3B8' }} className="sensor-metric">{r.inputs.Torque_Nm} Nm</td>
-                    <td style={{ padding: '8px 10px', color: '#94A3B8' }} className="sensor-metric">{r.inputs.Tool_wear_min} min</td>
-                    <td style={{ padding: '8px 10px', fontWeight: 700, color: r.riskCategory === 'Critical' ? '#F43F5E' : (r.riskCategory === 'Warning' ? '#F59E0B' : '#10B981') }} className="sensor-metric">
-                      {r.riskPercentage}%
+                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>{input.Type}</td>
+                    <td style={{ padding: '8px 10px', color: '#94A3B8' }} className="sensor-metric">{input.Rotational_speed_rpm} rpm</td>
+                    <td style={{ padding: '8px 10px', color: '#94A3B8' }} className="sensor-metric">{input.Torque_Nm} Nm</td>
+                    <td style={{ padding: '8px 10px', color: '#94A3B8' }} className="sensor-metric">{input.Tool_wear_min} min</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 700, color: riskCategory === 'Critical' ? '#F43F5E' : (riskCategory === 'Warning' ? '#F59E0B' : '#10B981') }} className="sensor-metric">
+                      {isModelResult ? `${result.prediction.riskPercentage}%` : 'Physical rules'}
                     </td>
                     <td style={{ padding: '8px 10px' }}>
-                      <span className={`maintiq-badge ${r.riskCategory === 'Critical' ? 'badge-critical' : (r.riskCategory === 'Warning' ? 'badge-warning' : 'badge-normal')}`}>
-                        {r.riskCategory}
+                      <span className={`maintiq-badge ${riskCategory === 'Critical' ? 'badge-critical' : (riskCategory === 'Warning' ? 'badge-warning' : 'badge-normal')}`}>
+                        {riskCategory}
                       </span>
                     </td>
                     <td style={{ padding: '8px 10px' }}>
-                      {r.isAnomaly ? (
+                      {isModelResult ? result.prediction.isAnomaly ? (
                         <span className="maintiq-badge badge-anomaly">Anomaly</span>
                       ) : (
                         <span style={{ color: '#64748B', fontSize: '11px' }}>Nominal</span>
-                      )}
+                      ) : <span style={{ color: '#64748B', fontSize: '11px' }}>Not evaluated</span>}
                     </td>
-                    <td style={{ padding: '8px 10px', color: '#CBD5E1', fontSize: '11px', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.recommendation}>
-                      {r.recommendation}
+                    <td style={{ padding: '8px 10px', color: '#CBD5E1', fontSize: '11px', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${primaryRiskFactor}: ${recommendation}`}>
+                      {primaryRiskFactor}: {recommendation}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

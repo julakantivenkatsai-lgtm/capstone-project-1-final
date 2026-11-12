@@ -22,6 +22,8 @@ interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
   datasetCount: number;
+  hasDataset: boolean;
+  hasAnomalyModel: boolean;
   historyCount: number;
   onLogout?: () => void;
 }
@@ -32,6 +34,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   setIsCollapsed,
   datasetCount,
+  hasDataset,
+  hasAnomalyModel,
   historyCount,
   onLogout
 }) => {
@@ -117,11 +121,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {navItems.map(item => {
             const isActive = activeTab === item.id;
+            const dataIndependent = ['dataset', 'about', 'dashboard', 'history'].includes(item.id);
+            const isDisabled = (!hasDataset && !dataIndependent) ||
+              (item.id === 'anomaly' && !hasAnomalyModel);
+            const disabledReason = !hasDataset
+              ? 'Upload a dataset first.'
+              : item.id === 'anomaly' && !hasAnomalyModel
+                ? 'Upload at least 2 sensor records to train anomaly detection.'
+                : 'Upload labeled data with at least 7 rows per class to enable this feature.';
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                title={isCollapsed ? item.label : undefined}
+                onClick={() => !isDisabled && setActiveTab(item.id)}
+                disabled={isDisabled}
+                title={isDisabled ? disabledReason : isCollapsed ? item.label : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -132,8 +145,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   borderRadius: '8px',
                   border: isActive ? '1px solid rgba(20, 184, 166, 0.4)' : '1px solid transparent',
                   background: isActive ? 'rgba(20, 184, 166, 0.12)' : 'transparent',
-                  color: isActive ? '#14B8A6' : '#94A3B8',
-                  cursor: 'pointer',
+                  color: isActive ? '#14B8A6' : isDisabled ? '#475569' : '#94A3B8',
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
                   textAlign: 'left',
                   fontSize: '13px',
                   fontWeight: isActive ? 700 : 500,

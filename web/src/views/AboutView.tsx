@@ -19,7 +19,7 @@ export const AboutView: React.FC = () => {
           Tagline: <strong style={{ color: '#14B8A6' }}>Machine Health Intelligence</strong>
         </p>
         <p style={{ fontSize: '13px', color: '#CBD5E1', lineHeight: 1.6 }}>
-          MaintIQ is an engineering demonstration that applies machine learning algorithms and unsupervised anomaly detection to milling machine telemetry. The system operates entirely in the browser using client-side TypeScript and <strong>@kanaries/ml</strong>, avoiding external server dependencies or API keys.
+          MaintIQ is an engineering demonstration that applies machine learning algorithms and unsupervised anomaly detection to uploaded machine telemetry. Training and inference run in the browser using client-side TypeScript and <strong>@kanaries/ml</strong>; the Express backend stores the active dataset in MongoDB.
         </p>
       </div>
 
@@ -34,8 +34,8 @@ export const AboutView: React.FC = () => {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', fontSize: '12px' }}>
           <div style={{ background: '#0F172A', padding: '12px', borderRadius: '6px', border: '1px solid #1E293B' }}>
-            <strong style={{ color: '#F43F5E', display: 'block', marginBottom: '4px' }}>1. Synthetic Dataset Disclosure</strong>
-            The telemetry is derived from the UCI AI4I 2020 Predictive Maintenance benchmark. This dataset is explicitly synthetic, modeled around numerical milling machine equations. It does not reflect verified empirical factory operational history.
+            <strong style={{ color: '#F43F5E', display: 'block', marginBottom: '4px' }}>1. Dataset Provenance</strong>
+            The app analyzes the dataset uploaded by the user. Verify its source and quality; MaintIQ does not certify that uploaded telemetry represents verified factory operations.
           </div>
 
           <div style={{ background: '#0F172A', padding: '12px', borderRadius: '6px', border: '1px solid #1E293B' }}>
@@ -80,7 +80,7 @@ export const AboutView: React.FC = () => {
               &check; Strictly Permitted Input Features (6 Total):
             </div>
             <ul style={{ paddingLeft: '20px', fontSize: '12px', color: '#CBD5E1', lineHeight: 1.8 }}>
-              <li><strong>Type:</strong> Machine quality variant (L: 50%, M: 30%, H: 20%)</li>
+              <li><strong>Type:</strong> Machine variant (L, M, or H)</li>
               <li><strong>Air temperature [K]:</strong> Ambient operating temperature</li>
               <li><strong>Process temperature [K]:</strong> Internal processing chamber temperature</li>
               <li><strong>Rotational speed [rpm]:</strong> Spindle angular velocity</li>
@@ -127,6 +127,10 @@ export const AboutView: React.FC = () => {
           <div style={{ background: '#0F172A', padding: '12px', borderRadius: '6px' }}>
             <div style={{ color: '#14B8A6', fontWeight: 700, marginBottom: '2px' }}>Local Storage</div>
             <div style={{ color: '#94A3B8' }}>HTML5 browser localStorage</div>
+          </div>
+          <div style={{ background: '#0F172A', padding: '12px', borderRadius: '6px' }}>
+            <div style={{ color: '#14B8A6', fontWeight: 700, marginBottom: '2px' }}>Dataset Storage</div>
+            <div style={{ color: '#94A3B8' }}>MongoDB when configured; otherwise browser storage</div>
           </div>
           <div style={{ background: '#0F172A', padding: '12px', borderRadius: '6px' }}>
             <div style={{ color: '#14B8A6', fontWeight: 700, marginBottom: '2px' }}>Deployment Target</div>

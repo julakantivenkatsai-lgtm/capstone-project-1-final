@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: maintiq
+    runtime: node
+    plan: free
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: MAINTIQ_USERNAME
+        sync: false
+      - key: MAINTIQ_PASSWORD
+        sync: false
+      - key: MAINTIQ_SESSION_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DATABASE
+        value: maintiq

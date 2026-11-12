@@ -1,33 +1,39 @@
 import React, { useRef, useState } from 'react';
 import {
   UploadCloud,
-  Download,
-  RotateCcw,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
 import { AI4IRecord, DatasetStatistics, DatasetValidationResult } from '../types';
 import { DatasetService } from '../data/datasetService';
+import { SavedDatasetResult } from '../data/activeDatasetService';
 
 interface DatasetViewProps {
   records: AI4IRecord[];
   stats: DatasetStatistics;
-  onDatasetUpdate: (newRecords: AI4IRecord[], validation: DatasetValidationResult) => void;
-  onResetDefault: () => void;
+  isLoading: boolean;
+  loadError: string | null;
+  persistenceWarning: string | null;
+  onDatasetUpdate: (newRecords: AI4IRecord[], validation: DatasetValidationResult, fileName: string) => Promise<SavedDatasetResult>;
 }
 
 export const DatasetView: React.FC<DatasetViewProps> = ({
+  records,
   stats,
+  isLoading,
+  loadError,
+  persistenceWarning,
   onDatasetUpdate,
-  onResetDefault
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [lastValidation, setLastValidation] = useState<DatasetValidationResult | null>(null);
   const [uploadNotice, setUploadNotice] = useState<{ type: 'error' | 'info' | 'success' | 'warning'; message: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileUpload = async (file: File) => {
     setUploadNotice(null);
+    setIsUploading(true);
     try {
       const { records: parsedRecords, validation } = DatasetService.parseCSV(await file.text());
       setLastValidation(validation);
@@ -37,40 +43,32 @@ export const DatasetView: React.FC<DatasetViewProps> = ({
         return;
       }
 
+      const saveResult = await onDatasetUpdate(parsedRecords, validation, file.name);
+      const savedTo = saveResult.persistence === 'mongodb' ? 'MongoDB' : 'this browser only';
       if (!validation.hasTarget) {
-        onDatasetUpdate(parsedRecords, validation);
-        setUploadNotice({ type: 'info', message: `${file.name}: Dataset and sensor EDA updated with ${validation.validRows} unlabeled rows. Failure metrics are unavailable; models remain trained on the previous labeled dataset.` });
+        setUploadNotice({ type: 'info', message: `${file.name}: Saved ${validation.validRows} uploaded rows to ${savedTo}. Failure metrics are unavailable until labels are included.` });
         return;
       }
 
       const failures = parsedRecords.filter(record => record.Machine_failure === 1).length;
       const normal = parsedRecords.length - failures;
       if (failures < 7 || normal < 7) {
-        onDatasetUpdate(parsedRecords, validation);
-        setUploadNotice({ type: 'warning', message: `${file.name}: Dataset and EDA updated with ${validation.validRows} labeled rows, but training needs at least 7 rows per class (found ${normal} normal and ${failures} failure). Existing models were not retrained.` });
+        setUploadNotice({ type: 'warning', message: `${file.name}: Saved ${validation.validRows} labeled rows to ${savedTo}, but training needs at least 7 rows per class (found ${normal} normal and ${failures} failure).` });
         return;
       }
 
-      onDatasetUpdate(parsedRecords, validation);
       setUploadNotice({
         type: validation.skippedRows > 0 ? 'warning' : 'success',
-        message: `${file.name}: Dataset and EDA updated with ${validation.validRows} labeled rows${validation.skippedRows > 0 ? `; ${validation.skippedRows} invalid rows were skipped` : ''}. Model training is updating.`
+        message: `${file.name}: Saved ${validation.validRows} labeled rows to ${savedTo}${validation.skippedRows > 0 ? `; ${validation.skippedRows} invalid rows were skipped` : ''}. Model training is updating.`
       });
-    } catch {
-      setUploadNotice({ type: 'error', message: `Could not read ${file.name}. Please choose a readable CSV file.` });
+    } catch (error) {
+      setUploadNotice({
+        type: 'error',
+        message: error instanceof Error ? `Upload failed: ${error.message}` : `Could not upload ${file.name}.`
+      });
+    } finally {
+      setIsUploading(false);
     }
-  };
-
-  const handleDownloadSample = () => {
-    const csv = DatasetService.generateSampleCSV();
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'maintiq_ai4i_sample.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const validationStatus = !lastValidation
@@ -90,17 +88,13 @@ export const DatasetView: React.FC<DatasetViewProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div>
               <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>Dataset Ingestion & Validation</h2>
-              <p style={{ fontSize: '12px', color: '#94A3B8' }}>In-browser parsing with automatic anti-leakage sanitization</p>
+              <p style={{ fontSize: '12px', color: '#94A3B8' }}>Upload a CSV to replace the active dataset. MongoDB sync is optional; without it, data stays in this browser.</p>
             </div>
-            <button
-              onClick={handleDownloadSample}
-              className="maintiq-btn-secondary"
-              style={{ fontSize: '12px', padding: '6px 12px' }}
-            >
-              <Download size={14} />
-              <span>Sample CSV</span>
-            </button>
           </div>
+
+          {isLoading && <div role="status" style={{ color: '#94A3B8', fontSize: '12px', marginBottom: '10px' }}>Loading the saved dataset…</div>}
+          {loadError && <div role="alert" style={{ color: '#FDA4AF', fontSize: '12px', marginBottom: '10px' }}>Could not load the saved dataset: {loadError}</div>}
+          {persistenceWarning && <div role="status" style={{ color: '#FCD34D', fontSize: '12px', marginBottom: '10px' }}>{persistenceWarning}</div>}
 
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -108,11 +102,11 @@ export const DatasetView: React.FC<DatasetViewProps> = ({
             onDrop={(e) => {
               e.preventDefault();
               setDragOver(false);
-              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+              if (!isUploading && e.dataTransfer.files && e.dataTransfer.files[0]) {
                 void handleFileUpload(e.dataTransfer.files[0]);
               }
             }}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !isUploading && !isLoading && fileInputRef.current?.click()}
             style={{
               flex: 1,
               border: `2px dashed ${dragOver ? '#14B8A6' : '#26354D'}`,
@@ -120,7 +114,7 @@ export const DatasetView: React.FC<DatasetViewProps> = ({
               padding: '30px 20px',
               textAlign: 'center',
               background: dragOver ? 'rgba(20, 184, 166, 0.05)' : '#0F172A',
-              cursor: 'pointer',
+              cursor: isUploading || isLoading ? 'wait' : 'pointer',
               transition: 'all 0.15s ease',
               display: 'flex',
               flexDirection: 'column',
@@ -132,8 +126,9 @@ export const DatasetView: React.FC<DatasetViewProps> = ({
             <input
               type="file"
               ref={fileInputRef}
-              accept=".csv"
+              accept=".csv,text/csv"
               style={{ display: 'none' }}
+              disabled={isUploading || isLoading}
               onChange={(e) => {
                 if (e.target.files && e.target.files[0]) {
                   void handleFileUpload(e.target.files[0]);
@@ -146,10 +141,13 @@ export const DatasetView: React.FC<DatasetViewProps> = ({
             </div>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: '#F1F5F9' }}>
-                Click to upload CSV or drag & drop file
+                {isUploading ? 'Saving uploaded CSV…' : 'Click to upload CSV or drag & drop file'}
               </div>
               <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
                 Required: Type, Air temp, Process temp, Rotational speed, Torque, Tool wear
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                Add Machine failure labels (0/1), with 7+ rows per class, to enable failure-prediction tools.
               </div>
             </div>
           </div>
@@ -168,16 +166,42 @@ export const DatasetView: React.FC<DatasetViewProps> = ({
           )}
 
           <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              onClick={onResetDefault}
-              className="maintiq-btn-secondary"
-              style={{ fontSize: '12px', padding: '6px 12px' }}
-            >
-              <RotateCcw size={14} />
-              <span>Reset to UCI AI4I Default (1,000 records)</span>
-            </button>
+            {records.length > 0 && <span style={{ color: '#64748B', fontSize: '11px' }}>Active dataset: {records.length.toLocaleString()} uploaded rows</span>}
           </div>
         </div>
+
+        {records.length > 0 && (
+          <div className="maintiq-card">
+            <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC', marginBottom: '6px' }}>Uploaded Data Preview</h2>
+            <p style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '12px' }}>
+              Showing {Math.min(records.length, 10)} of {records.length.toLocaleString()} records from the active uploaded dataset.
+            </p>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #1E293B', color: '#64748B', textTransform: 'uppercase' }}>
+                    {['Type', 'Air temp [K]', 'Process temp [K]', 'Speed [rpm]', 'Torque [Nm]', 'Tool wear [min]', ...(stats.hasTarget ? ['Machine failure'] : [])].map(column => (
+                      <th key={column} style={{ padding: '8px' }}>{column}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.slice(0, 10).map((record, index) => (
+                    <tr key={`${record.UDI}-${index}`} style={{ borderBottom: '1px solid #1E293B', color: '#CBD5E1' }}>
+                      <td style={{ padding: '8px' }}>{record.Type}</td>
+                      <td style={{ padding: '8px' }}>{record.Air_temperature_K}</td>
+                      <td style={{ padding: '8px' }}>{record.Process_temperature_K}</td>
+                      <td style={{ padding: '8px' }}>{record.Rotational_speed_rpm}</td>
+                      <td style={{ padding: '8px' }}>{record.Torque_Nm}</td>
+                      <td style={{ padding: '8px' }}>{record.Tool_wear_min}</td>
+                      {stats.hasTarget && <td style={{ padding: '8px' }}>{record.Machine_failure}</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Validation Status & Anti-Leakage Checklist */}
         <div className="maintiq-card">

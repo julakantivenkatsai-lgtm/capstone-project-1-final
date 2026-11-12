@@ -3,37 +3,39 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { ModelComparisonResult, PredictionInput } from '../types';
-import { mlEngine } from '../ml/engine';
+import { AI4IRecord, ModelComparisonResult, PredictionInput } from '../types';
+import { MLEngine, mlEngine } from '../ml/engine';
 
 interface ExplainabilityViewProps {
   comparison: ModelComparisonResult | null;
+  initialRecord: AI4IRecord;
+  isModelTrained: boolean;
 }
 
-export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({ comparison }) => {
-  const [whatIfInput, setWhatIfInput] = useState<PredictionInput>({
-    Type: 'L',
-    Air_temperature_K: 298.2,
-    Process_temperature_K: 308.6,
-    Rotational_speed_rpm: 1540,
-    Torque_Nm: 42.0,
-    Tool_wear_min: 75
-  });
+export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({ comparison, initialRecord, isModelTrained }) => {
+  const [whatIfInput, setWhatIfInput] = useState<PredictionInput>(() => ({
+    Type: initialRecord.Type,
+    Air_temperature_K: initialRecord.Air_temperature_K,
+    Process_temperature_K: initialRecord.Process_temperature_K,
+    Rotational_speed_rpm: initialRecord.Rotational_speed_rpm,
+    Torque_Nm: initialRecord.Torque_Nm,
+    Tool_wear_min: initialRecord.Tool_wear_min
+  }));
 
   const bestModel = comparison?.bestModelName === 'xgboost'
     ? comparison?.xgboost
     : (comparison?.randomForest || comparison?.logisticRegression);
 
-  const importanceData = bestModel?.featureImportances || [
-    { feature: 'Torque [Nm]', importance: 0.34 },
-    { feature: 'Tool wear [min]', importance: 0.28 },
-    { feature: 'Rotational speed [rpm]', importance: 0.18 },
-    { feature: 'Air temperature [K]', importance: 0.09 },
-    { feature: 'Process temperature [K]', importance: 0.07 },
-    { feature: 'Type (Quality Tier)', importance: 0.04 }
-  ];
-
-  const currentPrediction = mlEngine.predict(whatIfInput, 'xgboost');
+  const importanceData = bestModel?.featureImportances || [];
+  const physicalAssessment = MLEngine.assessPhysicalConditions(whatIfInput);
+  const currentPrediction = isModelTrained ? mlEngine.predict(whatIfInput, 'xgboost') : null;
+  const riskCategory = currentPrediction?.riskCategory ?? physicalAssessment.riskCategory;
+  const physicalMetrics = currentPrediction?.physicalMetrics ?? physicalAssessment.physicalMetrics;
+  const primaryRiskFactor = currentPrediction?.primaryRiskFactor ?? physicalAssessment.primaryRiskFactor;
+  const overstrainLimit = whatIfInput.Type === 'L' ? 11000 : (whatIfInput.Type === 'M' ? 12000 : 13000);
+  const hasOverstrainHazard = physicalMetrics.overstrainIndex > overstrainLimit;
+  const hasThermalHazard = physicalMetrics.deltaT < 8.6 && whatIfInput.Rotational_speed_rpm < 1380;
+  const hasPowerAnomaly = physicalMetrics.powerWatts < 3500 || physicalMetrics.powerWatts > 9000;
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -46,7 +48,15 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({ comparis
           </h2>
         </div>
         <p style={{ fontSize: '13px', color: '#CBD5E1', lineHeight: 1.6 }}>
-          <strong>Academic Honesty:</strong> Feature importances represent the relative impurity decrease across tree splits in <strong>@kanaries/ml</strong> models. They describe <em>statistical association</em> within the synthetic AI4I dataset, <strong>not proof of physical causation</strong>. This implementation does not claim SHAP values without an exact cooperative game-theoretic kernel.
+          {isModelTrained ? (
+            <>
+              <strong>Academic Honesty:</strong> Feature importances represent the relative impurity decrease across tree splits in <strong>@kanaries/ml</strong> models. They describe <em>statistical association</em> within the uploaded dataset, <strong>not proof of physical causation</strong>. This implementation does not claim SHAP values without an exact cooperative game-theoretic kernel.
+            </>
+          ) : (
+            <>
+              <strong>Physical-only mode:</strong> The what-if controls remain available for rule-based sensor checks. Model feature importance and failure probabilities require labeled training data with at least 7 rows per class.
+            </>
+          )}
         </p>
       </div>
 
@@ -58,30 +68,34 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({ comparis
               Ensemble Model Feature Importance ({bestModel?.displayName || 'XGBoost'})
             </h2>
             <p style={{ fontSize: '12px', color: '#94A3B8' }}>
-              Normalized Gini / Impurity gain contribution across tree partitions
+            {isModelTrained ? 'Normalized Gini / Impurity gain contribution across tree partitions' : 'Unavailable until a supervised model is trained from labeled data'}
             </p>
           </div>
           <span className="maintiq-badge badge-teal">Tree Impurity Gain</span>
         </div>
 
-        <div style={{ height: '240px', width: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={importanceData}
-              layout="vertical"
-              margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
-              <XAxis type="number" stroke="#64748B" fontSize={11} domain={[0, 0.45]} />
-              <YAxis type="category" dataKey="feature" stroke="#94A3B8" fontSize={11} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: '#0F172A', border: '1px solid #1E293B', borderRadius: '6px', fontSize: '11px' }}
-                formatter={(val: any) => [`${(Number(val) * 100).toFixed(1)}%`, 'Contribution']}
-              />
-              <Bar dataKey="importance" fill="#14B8A6" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {importanceData.length > 0 ? (
+          <div style={{ height: '240px', width: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={importanceData}
+                layout="vertical"
+                margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
+                <XAxis type="number" stroke="#64748B" fontSize={11} domain={[0, 0.45]} />
+                <YAxis type="category" dataKey="feature" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: '#0F172A', border: '1px solid #1E293B', borderRadius: '6px', fontSize: '11px' }}
+                  formatter={(val: any) => [`${(Number(val) * 100).toFixed(1)}%`, 'Contribution']}
+                />
+                <Bar dataKey="importance" fill="#14B8A6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p style={{ color: '#94A3B8', fontSize: '12px' }}>Feature importance is unavailable until a labeled dataset is uploaded and trained.</p>
+        )}
       </div>
 
       {/* Interactive What-If Scenario Sandbox */}
@@ -92,10 +106,12 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({ comparis
               Interactive What-If Scenario Simulator
             </h2>
             <p style={{ fontSize: '12px', color: '#94A3B8' }}>
-              Modify individual parameters to observe real-time risk sensitivity and physical condition transitions
+              {isModelTrained
+                ? 'Modify parameters to observe trained-model risk and physical condition changes'
+                : 'Modify parameters to check configured physical thresholds; this mode does not estimate failure probability'}
             </p>
           </div>
-          <span className="maintiq-badge badge-teal">Counterfactual Tuning</span>
+          <span className="maintiq-badge badge-teal">{isModelTrained ? 'Counterfactual Tuning' : 'Physical Rules Only'}</span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
@@ -173,43 +189,43 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({ comparis
           {/* Real-time What-If Health Output */}
           <div style={{ background: '#0F172A', padding: '18px', borderRadius: '8px', border: '1px solid #1E293B', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>
-              Simulated Health Response
+              {isModelTrained ? 'Simulated Model Response' : 'Physical Assessment (not an ML prediction)'}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
               <div
                 style={{
-                  fontSize: '36px',
+                  fontSize: currentPrediction ? '36px' : '20px',
                   fontWeight: 800,
-                  color: currentPrediction.riskCategory === 'Critical' ? '#F43F5E' : (currentPrediction.riskCategory === 'Warning' ? '#F59E0B' : '#10B981')
+                  color: riskCategory === 'Critical' ? '#F43F5E' : (riskCategory === 'Warning' ? '#F59E0B' : '#10B981')
                 }}
                 className="sensor-metric"
               >
-                {currentPrediction.riskPercentage}%
+                {currentPrediction ? `${currentPrediction.riskPercentage}%` : riskCategory}
               </div>
-              <span className={`maintiq-badge ${currentPrediction.riskCategory === 'Critical' ? 'badge-critical' : (currentPrediction.riskCategory === 'Warning' ? 'badge-warning' : 'badge-normal')}`}>
-                {currentPrediction.riskCategory}
+              <span className={`maintiq-badge ${riskCategory === 'Critical' ? 'badge-critical' : (riskCategory === 'Warning' ? 'badge-warning' : 'badge-normal')}`}>
+                {riskCategory} Risk
               </span>
             </div>
 
             {/* Threshold Checks */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', marginTop: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: currentPrediction.physicalMetrics.overstrainIndex > 11000 ? '#F43F5E' : '#94A3B8' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: hasOverstrainHazard ? '#F43F5E' : '#94A3B8' }}>
                 <span>Overstrain Index:</span>
-                <strong>{currentPrediction.physicalMetrics.overstrainIndex} {currentPrediction.physicalMetrics.overstrainIndex > 11000 ? '(HAZARD)' : '(SAFE)'}</strong>
+                <strong>{physicalMetrics.overstrainIndex} {hasOverstrainHazard ? '(HAZARD)' : '(SAFE)'}</strong>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: currentPrediction.physicalMetrics.deltaT < 8.6 ? '#F43F5E' : '#94A3B8' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: hasThermalHazard ? '#F43F5E' : '#94A3B8' }}>
                 <span>Thermal &Delta;T:</span>
-                <strong>{currentPrediction.physicalMetrics.deltaT} K {currentPrediction.physicalMetrics.deltaT < 8.6 ? '(LOW GRADIENT)' : '(NORMAL)'}</strong>
+                <strong>{physicalMetrics.deltaT} K {hasThermalHazard ? '(HAZARD)' : '(NORMAL)'}</strong>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: (currentPrediction.physicalMetrics.powerWatts < 3500 || currentPrediction.physicalMetrics.powerWatts > 9000) ? '#F59E0B' : '#94A3B8' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: hasPowerAnomaly ? '#F59E0B' : '#94A3B8' }}>
                 <span>Spindle Power:</span>
-                <strong>{currentPrediction.physicalMetrics.powerWatts} W</strong>
+                <strong>{physicalMetrics.powerWatts} W {hasPowerAnomaly ? '(OUTSIDE RANGE)' : ''}</strong>
               </div>
             </div>
 
             <div style={{ marginTop: 'auto', padding: '10px', background: '#131E36', borderRadius: '6px', fontSize: '11px', color: '#CBD5E1' }}>
-              <strong>Primary Risk Driver:</strong> {currentPrediction.primaryRiskFactor}
+              <strong>Primary Risk Driver:</strong> {primaryRiskFactor}
             </div>
           </div>
         </div>

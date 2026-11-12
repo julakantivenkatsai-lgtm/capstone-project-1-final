@@ -2,7 +2,7 @@
  * MaintIQ – Machine Health Intelligence Machine Learning Engine
  *
  * Implements:
- * 1. Stratified 70/15/15 train/val/test split to preserve target ratio (3.4% failures).
+ * 1. Stratified 70/15/15 train/val/test split to preserve the uploaded target ratio.
  * 2. Zero-leakage StandardScaler fitted strictly on the training partition.
  * 3. Logistic Regression, Random Forest, and XGBoost using @kanaries/ml.
  * 4. Validation-set decision threshold optimization (maximizing F1 on validation set).
@@ -11,17 +11,91 @@
  * 7. Feature importance and physical interaction modeling (Delta T, Power, Overstrain).
  */
 
-import { Ensemble, Linear, Metrics } from '@kanaries/ml';
+import { Ensemble, Linear } from '@kanaries/ml';
 import {
   AI4IRecord,
   CurvePoint,
   DerivedPhysicalMetrics,
   ModelComparisonResult,
   ModelMetrics,
+  PhysicalAssessment,
   PredictionInput,
   PredictionOutput,
   RiskLevel
 } from '../types';
+
+const createRocCurve = (expected: number[], scores: number[]): CurvePoint[] => {
+  const positives = expected.filter(label => label === 1).length;
+  const negatives = expected.length - positives;
+  if (positives === 0 || negatives === 0 || expected.length !== scores.length) {
+    throw new Error('ROC metrics require both target classes and one score per record.');
+  }
+
+  const thresholds = [...new Set(scores)].sort((a, b) => b - a);
+  const curve: CurvePoint[] = [{ x: 0, y: 0 }];
+  for (const threshold of thresholds) {
+    let truePositives = 0;
+    let falsePositives = 0;
+    for (let index = 0; index < scores.length; index++) {
+      if (scores[index] >= threshold) {
+        if (expected[index] === 1) truePositives++;
+        else falsePositives++;
+      }
+    }
+    curve.push({
+      x: falsePositives / negatives,
+      y: truePositives / positives,
+      threshold
+    });
+  }
+  return curve;
+};
+
+const createPrecisionRecallCurve = (expected: number[], scores: number[]): CurvePoint[] => {
+  const positives = expected.filter(label => label === 1).length;
+  if (positives === 0 || expected.length !== scores.length) {
+    throw new Error('Precision-recall metrics require positive targets and one score per record.');
+  }
+
+  const thresholds = [...new Set(scores)].sort((a, b) => b - a);
+  const curve: CurvePoint[] = [{ x: 0, y: 1 }];
+  for (const threshold of thresholds) {
+    let truePositives = 0;
+    let falsePositives = 0;
+    for (let index = 0; index < scores.length; index++) {
+      if (scores[index] >= threshold) {
+        if (expected[index] === 1) truePositives++;
+        else falsePositives++;
+      }
+    }
+    const predictedPositives = truePositives + falsePositives;
+    curve.push({
+      x: truePositives / positives,
+      y: predictedPositives > 0 ? truePositives / predictedPositives : 1,
+      threshold
+    });
+  }
+  return curve;
+};
+
+const areaUnderCurve = (curve: CurvePoint[]): number => {
+  let area = 0;
+  for (let index = 1; index < curve.length; index++) {
+    const width = curve[index].x - curve[index - 1].x;
+    area += width * (curve[index].y + curve[index - 1].y) / 2;
+  }
+  return area;
+};
+
+const sampleCurve = (curve: CurvePoint[]): CurvePoint[] => {
+  const stride = Math.max(1, Math.ceil(curve.length / 26));
+  return curve.filter((_, index) => index % stride === 0 || index === curve.length - 1)
+    .map(point => ({
+      x: parseFloat(point.x.toFixed(3)),
+      y: parseFloat(point.y.toFixed(3)),
+      ...(point.threshold === undefined ? {} : { threshold: point.threshold })
+    }));
+};
 
 export interface ScalerParams {
   means: number[];
@@ -88,6 +162,23 @@ export class MLEngine {
 
   private comparisonResult: ModelComparisonResult | null = null;
   private isTrained: boolean = false;
+  private isAnomalyTrained: boolean = false;
+
+  reset(): void {
+    this.scaler = new StandardScaler();
+    this.lrModel = null;
+    this.rfModel = null;
+    this.xgbModel = null;
+    this.isoForest = null;
+    this.optimalThresholds = {
+      logisticRegression: 0.5,
+      randomForest: 0.5,
+      xgboost: 0.5
+    };
+    this.comparisonResult = null;
+    this.isTrained = false;
+    this.isAnomalyTrained = false;
+  }
 
   // Feature names matching the 6 authorized input variables
   static readonly FEATURE_NAMES = [
@@ -127,6 +218,38 @@ export class MLEngine {
       powerWatts,
       overstrainIndex
     };
+  }
+
+  static assessPhysicalConditions(input: PredictionInput): PhysicalAssessment {
+    const physicalMetrics = MLEngine.computePhysicalMetrics(input);
+    const overstrainLimit = input.Type === 'L' ? 11000 : (input.Type === 'M' ? 12000 : 13000);
+    let riskCategory: PhysicalAssessment['riskCategory'] = 'Normal';
+    let primaryRiskFactor = 'No configured physical threshold exceeded';
+    let recommendation = 'Physical checks are within the configured thresholds. This is not a trained failure prediction.';
+
+    if (physicalMetrics.overstrainIndex > overstrainLimit) {
+      riskCategory = 'Critical';
+      primaryRiskFactor = `Tool Overstrain (${physicalMetrics.overstrainIndex} > ${overstrainLimit})`;
+      recommendation = 'Inspect tool wear and torque conditions before continued operation.';
+    } else if (input.Tool_wear_min >= 210) {
+      riskCategory = 'Warning';
+      primaryRiskFactor = `Tool Wear Limit (${input.Tool_wear_min} min)`;
+      recommendation = 'Inspect tool wear and consider replacing the cutting insert.';
+    } else if (physicalMetrics.deltaT < 8.6 && input.Rotational_speed_rpm < 1380) {
+      riskCategory = 'Critical';
+      primaryRiskFactor = `Heat Dissipation Hazard (ΔT ${physicalMetrics.deltaT} K at ${input.Rotational_speed_rpm} rpm)`;
+      recommendation = 'Inspect coolant flow and heat dissipation before continued operation.';
+    } else if (physicalMetrics.powerWatts < 3500 || physicalMetrics.powerWatts > 9000) {
+      riskCategory = 'Warning';
+      primaryRiskFactor = `Spindle Power Outside Range (${physicalMetrics.powerWatts} W)`;
+      recommendation = 'Inspect spindle load and operating conditions.';
+    } else if (input.Torque_Nm > 65) {
+      riskCategory = 'Warning';
+      primaryRiskFactor = `Elevated Cutting Torque (${input.Torque_Nm} Nm)`;
+      recommendation = 'Inspect cutting load and tool condition.';
+    }
+
+    return { riskCategory, physicalMetrics, primaryRiskFactor, recommendation };
   }
 
   /**
@@ -172,6 +295,12 @@ export class MLEngine {
    * Train models and perform threshold optimization & strict test evaluation
    */
   train(records: AI4IRecord[]): ModelComparisonResult {
+    this.reset();
+    const failures = records.filter(record => record.Machine_failure === 1).length;
+    if (failures < 7 || records.length - failures < 7) {
+      throw new Error('Model training requires at least 7 records from each target class.');
+    }
+
     const startTime = performance.now();
     const { train, val, test } = this.stratifiedSplit(records);
 
@@ -210,10 +339,10 @@ export class MLEngine {
       randomState: 42
     });
     this.rfModel.fit(trainX, trainY);
-    const rfValScores = this.extractRFProbabilities(this.rfModel, valX);
+    const rfValScores = this.extractRFScores(this.rfModel, valX);
     const rfThresh = this.findOptimalThreshold(valY, rfValScores);
     this.optimalThresholds.randomForest = rfThresh;
-    const rfTestScores = this.extractRFProbabilities(this.rfModel, testX);
+    const rfTestScores = this.extractRFScores(this.rfModel, testX);
     const rfMetrics = this.evaluateModel('randomForest', 'Random Forest', testY, rfTestScores, rfThresh, performance.now() - rfStart, this.rfModel.featureImportances);
 
     // 3. XGBoost Classifier
@@ -238,6 +367,7 @@ export class MLEngine {
       random_state: 42
     });
     this.isoForest.fit(trainX);
+    this.isAnomalyTrained = true;
 
     // Determine Best Model by Test F1-Score (never accuracy alone on imbalanced data)
     const models = [xgbMetrics, rfMetrics, lrMetrics];
@@ -264,39 +394,51 @@ export class MLEngine {
     return this.comparisonResult;
   }
 
+  trainAnomaly(records: AI4IRecord[]): void {
+    if (records.length < 2) {
+      throw new Error('Anomaly detection requires at least 2 uploaded records.');
+    }
+    this.reset();
+
+    const features = records.map(record => MLEngine.extractVector(record));
+    this.scaler.fit(features);
+    this.isoForest = new Ensemble.IsolationForest({
+      tree_num: 35,
+      contamination: 0.05,
+      random_state: 42
+    });
+    this.isoForest.fit(this.scaler.transform(features));
+    this.isAnomalyTrained = true;
+  }
+
   /**
    * Extract probability for Logistic Regression
    */
   private extractProbabilities(model: Linear.LogisticRegression, X: number[][]): number[] {
-    try {
-      const probas = model.predictProba(X);
-      return probas.map(p => (Array.isArray(p) && p.length > 1 ? p[1] : (Array.isArray(p) ? p[0] : 0.5)));
-    } catch {
-      const preds = model.predict(X);
-      return preds.map(v => (v === 1 ? 0.85 : 0.15));
-    }
+    return this.validateProbabilities(model.predictProba(X));
   }
 
-  /**
-   * Extract probability for Random Forest
-   */
-  private extractRFProbabilities(model: Ensemble.RandomForestClassifier, X: number[][]): number[] {
-    // Decision predictions averaged or scored
-    const preds = model.predict(X);
-    return preds.map(p => (p === 1 ? 0.90 : 0.08));
+  private extractRFScores(model: Ensemble.RandomForestClassifier, X: number[][]): number[] {
+    return model.predict(X).map(prediction => {
+      if (prediction !== 0 && prediction !== 1) {
+        throw new Error('Random Forest returned a non-binary prediction.');
+      }
+      return prediction;
+    });
   }
 
-  /**
-   * Extract probability for XGBoost
-   */
   private extractXGBProbabilities(model: Ensemble.XGBoostClassifier, X: number[][]): number[] {
-    try {
-      const probas = model.predictProba(X);
-      return probas.map(p => (Array.isArray(p) && p.length > 1 ? p[1] : (Array.isArray(p) ? p[0] : 0.5)));
-    } catch {
-      const preds = model.predict(X);
-      return preds.map(p => (p === 1 ? 0.92 : 0.05));
-    }
+    return this.validateProbabilities(model.predictProba(X));
+  }
+
+  private validateProbabilities(probabilities: number[][]): number[] {
+    return probabilities.map(row => {
+      const positiveProbability = row[1];
+      if (row.length < 2 || !Number.isFinite(positiveProbability) || positiveProbability < 0 || positiveProbability > 1) {
+        throw new Error('Classifier returned invalid binary probabilities.');
+      }
+      return positiveProbability;
+    });
   }
 
   /**
@@ -358,54 +500,12 @@ export class MLEngine {
     const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
     const accuracy = expected.length > 0 ? (tp + tn) / expected.length : 0;
 
-    // Calculate ROC-AUC with @kanaries/ml or trapezoidal integration fallback
-    let rocAuc = 0.5;
-    try {
-      rocAuc = Metrics.rocAucScore(expected, scores);
-    } catch {
-      rocAuc = 0.85;
-    }
-
-    // Compute ROC Curve points
-    const rocCurve: CurvePoint[] = [];
-    try {
-      const curve = Metrics.rocCurve(expected, scores);
-      for (let i = 0; i < curve.fpr.length; i += Math.max(1, Math.floor(curve.fpr.length / 25))) {
-        rocCurve.push({
-          x: parseFloat(curve.fpr[i].toFixed(3)),
-          y: parseFloat(curve.tpr[i].toFixed(3)),
-          threshold: parseFloat(curve.thresholds[i]?.toFixed(2) || '0')
-        });
-      }
-    } catch {
-      rocCurve.push({ x: 0, y: 0 }, { x: 0.1, y: 0.75 }, { x: 0.3, y: 0.90 }, { x: 1, y: 1 });
-    }
-
-    // Compute Precision-Recall Curve points
-    const prCurve: CurvePoint[] = [];
-    try {
-      const curve = Metrics.precisionRecallCurve(expected, scores);
-      for (let i = 0; i < curve.recall.length; i += Math.max(1, Math.floor(curve.recall.length / 25))) {
-        prCurve.push({
-          x: parseFloat(curve.recall[i].toFixed(3)),
-          y: parseFloat(curve.precision[i].toFixed(3)),
-          threshold: parseFloat(curve.thresholds[i]?.toFixed(2) || '0')
-        });
-      }
-    } catch {
-      prCurve.push({ x: 0, y: 1 }, { x: 0.6, y: 0.85 }, { x: 0.9, y: 0.65 }, { x: 1, y: 0.2 });
-    }
-
-    // Compute PR-AUC (Average Precision) via trapezoid
-    let prAuc = 0;
-    if (prCurve.length > 1) {
-      for (let i = 1; i < prCurve.length; i++) {
-        const dx = Math.abs(prCurve[i].x - prCurve[i - 1].x);
-        const avgY = (prCurve[i].y + prCurve[i - 1].y) / 2;
-        prAuc += dx * avgY;
-      }
-    }
-    prAuc = Math.min(1.0, Math.max(0.1, prAuc || 0.78));
+    const fullRocCurve = createRocCurve(expected, scores);
+    const fullPrCurve = createPrecisionRecallCurve(expected, scores);
+    const rocAuc = areaUnderCurve(fullRocCurve);
+    const prAuc = areaUnderCurve(fullPrCurve);
+    const rocCurve = sampleCurve(fullRocCurve);
+    const prCurve = sampleCurve(fullPrCurve);
 
     // Normalize and assign feature importances
     let featureImportances: { feature: string; importance: number }[] | undefined;
@@ -415,16 +515,6 @@ export class MLEngine {
         feature,
         importance: parseFloat((Math.abs(rawImportances[idx]) / sum).toFixed(4))
       })).sort((a, b) => b.importance - a.importance);
-    } else {
-      // Default domain-calibrated relative importance according to AI4I physics:
-      featureImportances = [
-        { feature: 'Torque [Nm]', importance: 0.34 },
-        { feature: 'Tool wear [min]', importance: 0.28 },
-        { feature: 'Rotational speed [rpm]', importance: 0.18 },
-        { feature: 'Air temperature [K]', importance: 0.09 },
-        { feature: 'Process temperature [K]', importance: 0.07 },
-        { feature: 'Type (Quality Tier)', importance: 0.04 }
-      ];
     }
 
     return {
@@ -453,20 +543,24 @@ export class MLEngine {
     preferredModel: 'logisticRegression' | 'randomForest' | 'xgboost' = 'xgboost',
     thresholdOverride?: number
   ): PredictionOutput {
+    if (!this.isTrained || !this.scaler.params || !this.isoForest) {
+      throw new Error('Upload and train a labeled dataset before running predictions.');
+    }
     const rawVector = MLEngine.extractVector(input);
-    const scaledVector = this.scaler.params ? this.scaler.transformSingle(rawVector) : rawVector;
-
-    let prob = 0.05;
+    const scaledVector = this.scaler.transformSingle(rawVector);
+    let prob: number;
 
     if (preferredModel === 'xgboost' && this.xgbModel) {
       const scores = this.extractXGBProbabilities(this.xgbModel, [scaledVector]);
       prob = scores[0];
     } else if (preferredModel === 'randomForest' && this.rfModel) {
-      const scores = this.extractRFProbabilities(this.rfModel, [scaledVector]);
+      const scores = this.extractRFScores(this.rfModel, [scaledVector]);
       prob = scores[0];
     } else if (preferredModel === 'logisticRegression' && this.lrModel) {
       const scores = this.extractProbabilities(this.lrModel, [scaledVector]);
       prob = scores[0];
+    } else {
+      throw new Error(`The ${preferredModel} model is not trained.`);
     }
 
     // Physical bounds calibration checks
@@ -498,16 +592,7 @@ export class MLEngine {
     const activeThreshold = thresholdOverride ?? this.optimalThresholds[preferredModel];
     const predictedClass: 0 | 1 = finalProb >= activeThreshold ? 1 : 0;
 
-    // Isolation Forest anomaly scoring
-    let anomalyScore = 0.42;
-    if (this.isoForest) {
-      anomalyScore = this.isoForest.anomalyScore(scaledVector);
-    } else {
-      // Norm-based fallback
-      const speedNorm = Math.abs(input.Rotational_speed_rpm - 1538) / 179;
-      const torqueNorm = Math.abs(input.Torque_Nm - 40) / 10;
-      anomalyScore = Math.min(0.95, 0.35 + (speedNorm + torqueNorm) * 0.12);
-    }
+    const anomalyScore = this.isoForest.anomalyScore(scaledVector);
     const isAnomaly = anomalyScore >= 0.58;
 
     // Risk category definition
@@ -556,6 +641,19 @@ export class MLEngine {
 
   getIsTrained(): boolean {
     return this.isTrained;
+  }
+
+  getIsAnomalyTrained(): boolean {
+    return this.isAnomalyTrained;
+  }
+
+  anomalyScore(input: PredictionInput): number {
+    if (!this.isAnomalyTrained || !this.scaler.params || !this.isoForest) {
+      throw new Error('Upload telemetry and fit the anomaly detector before scoring.');
+    }
+    return this.isoForest.anomalyScore(
+      this.scaler.transformSingle(MLEngine.extractVector(input))
+    );
   }
 }
 
