@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
-  ShieldAlert
+  ShieldAlert,
+  Database
 } from 'lucide-react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { AI4IRecord } from '../types';
@@ -8,20 +9,58 @@ import { mlEngine } from '../ml/engine';
 
 interface AnomalyViewProps {
   records: AI4IRecord[];
+  isTrained: boolean;
+  isRetraining: boolean;
+  trainingError: string | null;
+  onGoToDataset: () => void;
 }
 
-export const AnomalyView: React.FC<AnomalyViewProps> = ({ records }) => {
+export const AnomalyView: React.FC<AnomalyViewProps> = ({
+  records,
+  isTrained,
+  isRetraining,
+  trainingError,
+  onGoToDataset
+}) => {
+  const firstRecord = records[0];
   const [sensitivity, setSensitivity] = useState<number>(0.58);
   const [testInput, setTestInput] = useState(() => ({
-    speed: records[0].Rotational_speed_rpm,
-    torque: records[0].Torque_Nm,
-    toolWear: records[0].Tool_wear_min,
-    airTemp: records[0].Air_temperature_K,
-    procTemp: records[0].Process_temperature_K
+    speed: firstRecord?.Rotational_speed_rpm ?? 1500,
+    torque: firstRecord?.Torque_Nm ?? 40,
+    toolWear: firstRecord?.Tool_wear_min ?? 0,
+    airTemp: firstRecord?.Air_temperature_K ?? 298.1,
+    procTemp: firstRecord?.Process_temperature_K ?? 308.6
   }));
 
+  if (!isTrained || records.length < 2) {
+    const title = isRetraining
+      ? 'Training anomaly detector…'
+      : trainingError
+        ? 'Anomaly detector could not be trained'
+        : records.length === 0
+          ? 'Upload sensor data to detect anomalies'
+          : 'Anomaly detection needs at least 2 sensor rows';
+    const message = isRetraining
+      ? 'The anomaly analysis will appear when training completes.'
+      : trainingError || 'Upload a CSV with the six required sensor columns. Failure labels are not required.';
+
+    return (
+      <div className="maintiq-card" style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>
+        <ShieldAlert size={32} style={{ marginBottom: '12px', color: '#8B5CF6' }} />
+        <h2 style={{ color: '#F8FAFC', fontSize: '16px', margin: '0 0 8px' }}>{title}</h2>
+        <p style={{ maxWidth: '580px', margin: '0 auto 16px', fontSize: '13px', lineHeight: 1.6 }}>{message}</p>
+        {!isRetraining && (
+          <button onClick={onGoToDataset} className="maintiq-btn-primary">
+            <Database size={14} />
+            <span>Open Dataset &amp; EDA</span>
+          </button>
+        )}
+      </div>
+    );
+  }
+
   const anomalyScore = mlEngine.anomalyScore({
-    Type: records[0].Type,
+    Type: firstRecord.Type,
     Air_temperature_K: testInput.airTemp,
     Process_temperature_K: testInput.procTemp,
     Rotational_speed_rpm: testInput.speed,

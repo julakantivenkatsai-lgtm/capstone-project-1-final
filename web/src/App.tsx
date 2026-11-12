@@ -217,9 +217,6 @@ export const App: React.FC = () => {
   };
 
   const handleTabChange = (tab: NavigationTab) => {
-    const dataIndependentTabs: NavigationTab[] = ['dataset', 'about', 'dashboard', 'history', 'predict', 'batch', 'explain'];
-    if (!records.length && !dataIndependentTabs.includes(tab)) return;
-    if (tab === 'anomaly' && !isAnomalyModelTrained) return;
     setActiveTab(tab);
   };
 
@@ -284,7 +281,15 @@ export const App: React.FC = () => {
           )}
           {activeTab === 'batch' && <BatchView isModelTrained={isModelTrained} />}
           {activeTab === 'models' && <ModelComparisonView comparison={comparison} isRetraining={isRetraining} onGoToDataset={() => handleTabChange('dataset')} />}
-          {activeTab === 'anomaly' && isAnomalyModelTrained && records.length > 0 && <AnomalyView records={records} />}
+          {activeTab === 'anomaly' && (
+            <AnomalyView
+              records={records}
+              isTrained={isAnomalyModelTrained}
+              isRetraining={isRetraining}
+              trainingError={trainingError}
+              onGoToDataset={() => handleTabChange('dataset')}
+            />
+          )}
           {activeTab === 'explain' && (
             <ExplainabilityView comparison={comparison} initialRecord={initialPredictionInput} isModelTrained={isModelTrained} />
           )}
